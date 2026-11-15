@@ -8,7 +8,7 @@ Aegis has its own operational metadata database, and it analyzes/migrates databa
 - **Customer source/target databases:** vendor-neutral project metadata. The source and target database vendors are selected per modernization project and are not required to be Oracle.
 - **Core domain:** physical database objects retain their source/target vendor identity, while logical entities and relationships remain database-independent.
 
-The internal Oracle implementation is behind the `ProjectRepository` port. Analysis engines, parsers and transformation planners depend on the port/domain model, never on Oracle JDBC classes. The current Oracle adapter stores append-only UPKM snapshots as JSON CLOBs and maintains relational project/run metadata. It does not replace the immutable content-addressed artifact store or evidence/conflict journals yet.
+The internal Oracle implementation is behind the `ProjectRepository` port. Analysis engines, parsers and transformation planners depend on the port/domain model, never on Oracle JDBC classes. The Oracle adapter stores append-only UPKM snapshots as JSON CLOBs and maintains relational project/run metadata. The immutable artifact BLOB repository is added by migration `db/oracle/V002__aegis_artifacts.sql`; apply V001 and then V002 before using artifact persistence. Evidence and conflict journals remain file-backed and are not yet migrated to Oracle.
 
 ## Oracle support
 
@@ -27,10 +27,10 @@ Commands:
 ```bash
 java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar db-check
 java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar store-intake ./project-intake.json
-java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar load-model <project-id>
+java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar load-model <project-id>\njava -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar store-artifact <project-id> <artifact-id> <category> <format> <origin> <file>
 ```
 
-`store-intake` persists the initial project model created from the intake envelope. Later analysis runs create additional immutable snapshots for the same project. `load-model` returns the latest snapshot. Database failures never print credentials. Configure Oracle TLS/wallet and network policy at deployment level.
+`store-intake` persists the initial project model created from the intake envelope. Later analysis runs create additional immutable snapshots for the same project. `load-model` returns the latest snapshot. `store-artifact` inserts immutable binary content into Oracle and returns its SHA-256 and byte size. It requires the project to have been created first with `store-intake`. Artifact identifiers are unique within a project; duplicate inserts are rejected rather than overwriting historical input. Database failures never print credentials. Configure Oracle TLS/wallet and network policy at deployment level.
 
 ## Customer database portability
 

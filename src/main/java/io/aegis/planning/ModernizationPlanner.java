@@ -1,6 +1,7 @@
 package io.aegis.planning;
 
 import io.aegis.domain.ProjectKnowledgeModel;
+import io.aegis.parser.sql.DatabaseDialectRegistry;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,12 +18,16 @@ public final class ModernizationPlanner {
         decisions.add(new Decision("application-framework", target.framework() + " " + target.frameworkVersion(),
                 "Framework target is user supplied; verify its Java compatibility matrix before adoption.",
                 "HIGH", List.of("target-profile")));
-        if (source.dataStores().stream().anyMatch(db -> db.vendor().equalsIgnoreCase("oracle"))
-                && target.database().equalsIgnoreCase("postgresql")) {
-            decisions.add(new Decision("database", "Oracle to PostgreSQL",
-                    "Dialect, sequence, package, procedure and data-type differences require explicit review.",
-                    "MEDIUM", List.of("source-upkm", "target-profile")));
-        }
+        boolean oracleSource = source.dataStores().stream()
+                .anyMatch(db -> db.vendor().equalsIgnoreCase("oracle"));
+        boolean registeredTarget = new DatabaseDialectRegistry().find(target.database()).isPresent();
+        String databaseRationale = oracleSource && target.database().equalsIgnoreCase("postgresql")
+                ? "Oracle-to-PostgreSQL dialect, sequence, package, procedure and data-type differences require explicit review."
+                : registeredTarget
+                    ? "Target database was explicitly selected; use only dialect capabilities declared and tested by the registry."
+                    : "Custom database target was explicitly selected; a dedicated tested dialect adapter is required before automated transformation.";
+        decisions.add(new Decision("database", target.database(), databaseRationale,
+                registeredTarget ? "HIGH" : "LOW", List.of("target-profile", "database-dialect-registry")));
         steps.add(new MigrationStep(order++, "baseline", "Capture baseline",
                 "Record build, tests, runtime behavior, schema and operational metrics.", "LOW", List.of()));
         steps.add(new MigrationStep(order++, "compatibility", "Resolve compatibility",

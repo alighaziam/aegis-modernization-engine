@@ -19,6 +19,9 @@ import io.aegis.parser.java.JavaSourceAnalyzer;
 import io.aegis.parser.java.JavaSourceToKnowledgeMapper;
 import io.aegis.transformation.JavaImportMigrationEngine;
 import io.aegis.transformation.OraclePostgresDdlPlanner;
+import io.aegis.persistence.ArtifactRepository;
+import io.aegis.persistence.OracleArtifactDigest;
+import io.aegis.persistence.oracle.OracleArtifactRepository;
 import io.aegis.persistence.oracle.OracleConnectionConfig;
 import io.aegis.persistence.oracle.OracleProjectRepository;
 import com.zaxxer.hikari.HikariDataSource;
@@ -63,6 +66,7 @@ public final class AegisCli {
                 case "plan-ddl-migration" -> runPlanDdlMigration(args);
                 case "db-check" -> runDbCheck(args);
                 case "store-intake" -> runStoreIntake(args);
+                case "store-artifact" -> runStoreArtifact(args);
                 case "load-model" -> runLoadModel(args);
                 default -> {
                     System.err.println("Unknown command: " + args[0]);
@@ -109,6 +113,25 @@ public final class AegisCli {
         }
         System.out.println(JSON.writeValueAsString(new StoredProjectOutput(
                 model.project().id(), model.project().name(), model.analyzedAt(), "ORACLE")));
+        return 0;
+    }
+
+    private static int runStoreArtifact(String[] args) throws Exception {
+        if (args.length != 7) {
+            System.err.println("Usage: aegis-modernization-engine store-artifact <project-id> <artifact-id> <category> <format> <origin> <file>");
+            return 2;
+        }
+        byte[] content = Files.readAllBytes(Path.of(args[6]));
+        if (content.length > 100L * 1024L * 1024L)
+            throw new IllegalArgumentException("Artifact exceeds the 100 MiB persistence limit");
+        String digest = OracleArtifactDigest.sha256(content);
+        ArtifactRepository.ArtifactContent artifact = new ArtifactRepository.ArtifactContent(
+                args[1], args[2], args[3], args[4], args[5], digest, content, java.time.Instant.now());
+        try (HikariDataSource dataSource = OracleConnectionConfig.fromEnvironment().createDataSource()) {
+            new OracleArtifactRepository(dataSource).save(artifact);
+        }
+        System.out.println(JSON.writeValueAsString(new StoredArtifactOutput(
+                artifact.projectId(), artifact.artifactId(), artifact.sha256(), artifact.sizeBytes(), "ORACLE")));
         return 0;
     }
 
@@ -301,6 +324,7 @@ public final class AegisCli {
     public record JavaImportMigrationOutput(JavaImportMigrationEngine.MigrationResult migration, boolean written) {}
     public record DdlMigrationOutput(SqlDdlParser.ParseResult sourceAnalysis,
                                      OraclePostgresDdlPlanner.MigrationPlan migrationPlan) {}
+    public record StoredArtifactOutput(String projectId, String artifactId, String sha256, long sizeBytes, String persistenceDatabase) {}
     public record StoredProjectOutput(String projectId, String projectName,
                                       java.time.Instant analyzedAt, String persistenceDatabase) {}
 
