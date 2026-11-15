@@ -24,6 +24,7 @@ import io.aegis.persistence.OracleArtifactDigest;
 import io.aegis.persistence.oracle.OracleArtifactRepository;
 import io.aegis.persistence.oracle.OracleConnectionConfig;
 import io.aegis.persistence.oracle.OracleProjectRepository;
+import io.aegis.persistence.oracle.OracleIntakeRepository;
 import com.zaxxer.hikari.HikariDataSource;
 import java.nio.file.StandardCopyOption;
 
@@ -106,14 +107,17 @@ public final class AegisCli {
             System.err.println("Usage: aegis-modernization-engine store-intake <intake.json>");
             return 2;
         }
-        IntakeService.IntakeRequest request = IntakeService.readRequest(Path.of(args[1]));
+        Path intakeFile = Path.of(args[1]).toAbsolutePath().normalize();
+        IntakeService.IntakeRequest request = IntakeService.readRequest(intakeFile);
         ProjectKnowledgeModel model = new IntakeToKnowledgeModelMapper().map(request);
+        OracleIntakeRepository.IntakeSaveResult saved;
         try (HikariDataSource dataSource = OracleConnectionConfig.fromEnvironment().createDataSource()) {
-            new OracleProjectRepository(dataSource).saveSnapshot(model);
+            saved = new OracleIntakeRepository(dataSource).save(request, model, intakeFile);
         }
-        System.out.println(JSON.writeValueAsString(new StoredProjectOutput(
-                model.project().id(), model.project().name(), model.analyzedAt(), "ORACLE")));
-        return 0;
+        System.out.println(JSON.writeValueAsString(new StoredIntakeOutput(
+                saved.projectId(), model.project().name(), saved.persistedArtifacts(),
+                saved.pendingArtifacts(), "ORACLE")));
+        return saved.pendingArtifacts() == 0 ? 0 : 3;
     }
 
     private static int runStoreArtifact(String[] args) throws Exception {
@@ -327,6 +331,8 @@ public final class AegisCli {
     public record StoredArtifactOutput(String projectId, String artifactId, String sha256, long sizeBytes, String persistenceDatabase) {}
     public record StoredProjectOutput(String projectId, String projectName,
                                       java.time.Instant analyzedAt, String persistenceDatabase) {}
+    public record StoredIntakeOutput(String projectId, String projectName, int persistedArtifacts,
+                                     int pendingArtifacts, String persistenceDatabase) {}
 
     private static boolean isHelp(String arg) {
         return "-h".equals(arg) || "--help".equals(arg) || "help".equals(arg);
