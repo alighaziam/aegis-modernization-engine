@@ -1,0 +1,90 @@
+package io.aegis.cli;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import io.aegis.intake.IntakeService;
+import io.aegis.parser.sql.SqlDdlParser;
+
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+/** Command-line entry point for deterministic, offline Aegis operations. */
+public final class AegisCli {
+    private static final ObjectMapper JSON = new ObjectMapper()
+            .enable(SerializationFeature.INDENT_OUTPUT);
+
+    private AegisCli() {}
+
+    public static void main(String[] args) {
+        int exitCode = run(args);
+        if (exitCode != 0) System.exit(exitCode);
+    }
+
+    static int run(String[] args) {
+        if (args == null || args.length == 0 || isHelp(args[0])) {
+            usage();
+            return args == null || args.length == 0 ? 2 : 0;
+        }
+
+        try {
+            return switch (args[0]) {
+                case "intake" -> runIntake(args);
+                case "parse-ddl" -> runParseDdl(args);
+                default -> {
+                    System.err.println("Unknown command: " + args[0]);
+                    usage();
+                    yield 2;
+                }
+            };
+        } catch (Exception e) {
+            System.err.println("Aegis error: " + e.getMessage());
+            return 1;
+        }
+    }
+
+    private static int runIntake(String[] args) throws Exception {
+        if (args.length != 3) {
+            System.err.println("Usage: aegis intake <intake.json> <artifact-store-dir>");
+            return 2;
+        }
+        IntakeService.IntakeReport report = new IntakeService(Path.of(args[2])).ingest(Path.of(args[1]));
+        System.out.println(JSON.writeValueAsString(report));
+        return report.warnings().isEmpty() ? 0 : 3;
+    }
+
+    private static int runParseDdl(String[] args) throws Exception {
+        if (args.length < 3 || args.length > 4) {
+            System.err.println("Usage: aegis parse-ddl <schema.sql> <oracle|postgresql> [source-name]");
+            return 2;
+        }
+        Path input = Path.of(args[1]);
+        String sql = Files.readString(input, StandardCharsets.UTF_8);
+        String sourceName = args.length == 4 ? args[3] : input.getFileName().toString();
+        SqlDdlParser.ParseResult result = new SqlDdlParser().parse(sql, sourceName, args[2]);
+        System.out.println(JSON.writeValueAsString(result));
+        return result.diagnostics().isEmpty() ? 0 : 3;
+    }
+
+    private static boolean isHelp(String arg) {
+        return "-h".equals(arg) || "--help".equals(arg) || "help".equals(arg);
+    }
+
+    private static void usage() {
+        System.out.println("""
+                Aegis Modernization Engine (offline, deterministic)
+
+                Commands:
+                  intake <intake.json> <artifact-store-dir>
+                      Validate an intake envelope and register supplied artifacts.
+                  parse-ddl <schema.sql> <oracle|postgresql> [source-name]
+                      Parse the supported SQL DDL subset and emit JSON.
+
+                Exit codes:
+                  0  completed without review warnings
+                  1  execution or validation error
+                  2  invalid command usage
+                  3  completed with diagnostics or review warnings
+                """);
+    }
+}
