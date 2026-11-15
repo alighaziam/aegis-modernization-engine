@@ -51,11 +51,14 @@ build/install/aegis-modernization-engine/bin/aegis-modernization-engine intake .
 
 # Parse the supported SQL DDL subset and print a JSON result
 build/install/aegis-modernization-engine/bin/aegis-modernization-engine parse-ddl ./schema.sql postgresql
+
+# Merge parsed DDL into the project's canonical physical data model (UPKM)
+build/install/aegis-modernization-engine/bin/aegis-modernization-engine map-ddl ./project-intake.json ./schema.sql postgresql orders-db public 16
 ```
 
 Exit codes: `0` means completed without diagnostics/warnings, `1` means execution or validation error, `2` means invalid command usage, and `3` means processing completed with review diagnostics or intake warnings.
 
-A GitHub Actions workflow runs Java 25 compilation, tests, and distribution assembly on pushes and pull requests to `main`.
+A GitHub Actions workflow runs Java 25 compilation, tests, and distribution assembly on pushes and pull requests to `main`. The `map-ddl` command combines the validated project intake, technology profile, SQL parse result, and physical database model into one JSON output; it does not infer logical business relationships.
 
 ## Repository map
 
