@@ -78,8 +78,16 @@ public final class IntakeService {
 
     private static void validate(IntakeRequest r) {
         if (r == null || !"1.0".equals(r.schemaVersion())) throw new IntakeException("Unsupported schemaVersion; expected 1.0");
-        if (r.project() == null || blank(r.project().id()) || blank(r.project().name())) throw new IntakeException("project.id and project.name are required");
-        if (r.intake() == null || blank(r.intake().batchId()) || r.intake().artifacts() == null || r.intake().artifacts().isEmpty()) throw new IntakeException("intake.batchId and at least one artifact are required");
+        if (r.project() == null || blank(r.project().id()) || blank(r.project().name()))
+            throw new IntakeException("project.id and project.name are required");
+        if (!r.project().id().matches("^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"))
+            throw new IntakeException("project.id must use letters, digits, dot, underscore, colon or hyphen");
+        if (r.project().name().length() > 200)
+            throw new IntakeException("project.name exceeds 200 characters");
+        if (r.intake() == null || blank(r.intake().batchId()) || r.intake().artifacts() == null || r.intake().artifacts().isEmpty())
+            throw new IntakeException("intake.batchId and at least one artifact are required");
+        if (r.intake().batchId().length() > 128)
+            throw new IntakeException("intake.batchId exceeds 128 characters");
         String mode = r.intake().mode();
         if (mode == null || !List.of("single", "pair", "bundle", "incremental", "manual").contains(mode)) throw new IntakeException("Unsupported intake mode: " + mode);
         if ("single".equals(mode) && r.intake().artifacts().size() != 1) throw new IntakeException("single mode requires exactly one artifact");
@@ -88,12 +96,23 @@ public final class IntakeService {
         for (ArtifactDescriptor a : r.intake().artifacts()) {
             if (a == null || blank(a.artifactId()) || blank(a.category()) || blank(a.format()) || blank(a.origin()))
                 throw new IntakeException("Every artifact requires artifactId, category, format and origin");
+            if (a.artifactId().length() > 128 || a.format().length() > 64)
+                throw new IntakeException("artifactId or format exceeds its schema limit: " + a.artifactId());
+            if (!List.of("document", "data_model", "database_metadata", "source_code", "build",
+                    "configuration", "api_contract", "test", "infrastructure", "log", "manual_input", "other")
+                    .contains(a.category()))
+                throw new IntakeException("Unsupported artifact category: " + a.category());
+            if (!List.of("upload", "local_path", "git_snapshot", "database_connection", "manual", "generated")
+                    .contains(a.origin()))
+                throw new IntakeException("Unsupported artifact origin: " + a.origin());
             if (!artifactIds.add(a.artifactId()))
                 throw new IntakeException("Duplicate artifactId: " + a.artifactId());
             if (a.sha256() != null && !a.sha256().matches("(?i)[a-f0-9]{64}"))
                 throw new IntakeException("Invalid SHA-256 value for artifact: " + a.artifactId());
             if (a.sizeBytes() != null && a.sizeBytes() < 0)
                 throw new IntakeException("Artifact sizeBytes cannot be negative: " + a.artifactId());
+            if (a.location() != null && a.location().length() > 2048)
+                throw new IntakeException("Artifact location exceeds 2048 characters: " + a.artifactId());
         }
     }
 
