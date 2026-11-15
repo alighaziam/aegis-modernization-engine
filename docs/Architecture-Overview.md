@@ -1,10 +1,10 @@
 # Aegis Logical Architecture
 
-**Status:** Initial baseline (v0.1)
+**Status:** Initial baseline (v0.2)
 
 ## 1. Architectural position
 
-Aegis is a deterministic software engineering workbench for legacy discovery, modernization planning, controlled transformation and validation. It is not an LLM-powered agent framework. The system may orchestrate multi-step workflows, but every decision must come from explicit rules, parsers, compatibility data, graph algorithms, deterministic scoring or human approval.
+Aegis is a deterministic software engineering workbench for legacy discovery, modernization planning, controlled transformation and validation. It is not an LLM-powered agent framework. Every decision comes from explicit rules, parsers, compatibility data, graph algorithms, deterministic scoring or human approval.
 
 ## 2. High-level flow
 
@@ -24,11 +24,11 @@ Unified Project Knowledge Model (UPKM)
 Evidence / Provenance / Conflict Registry
       |
 Analysis Orchestrator
-  |-- Legacy Discovery
-  |-- Data Intelligence
-  |-- Dependency & Integration Analysis
-  |-- Architecture Analysis
-  |-- Quality / Risk Analysis
+      |-- Legacy Discovery
+      |-- Data Intelligence
+      |-- Dependency & Integration Analysis
+      |-- Architecture Analysis
+      |-- Quality / Risk Analysis
       |
 Decision & Migration Planning
       |
@@ -39,103 +39,71 @@ Validation & Reconciliation
 Reports / Architecture Maps / Migration Artifacts
 ```
 
-## 3. Core subsystems
+## 3. Persistence boundary and database independence
 
-### Project and Intake Management
-Owns project lifecycle, intake batches, artifact metadata, schema versions, incremental updates and access policy.
+Two database roles are deliberately separated:
 
-### Artifact and Format Adapter Layer
-Each adapter detects supported format/version, validates and parses input, emits normalized facts and source locators, and reports diagnostics and unsupported constructs. It never makes architecture decisions. Adapters are isolated by format and version. Lossy fallback parsing must be recorded.
+1. **Aegis internal operational database:** Oracle Database 19c+ is the required production persistence engine for project metadata and versioned analysis snapshots.
+2. **Customer project databases:** each analyzed project's source and target database vendor is independent and selected per project. Oracle is one supported dialect, not the only allowed target.
 
-### Unified Project Knowledge Model
-The canonical domain model shared by all analysis engines. It must not contain vendor-specific parser classes or raw syntax-tree nodes as its public domain contract. Raw parse artifacts may be retained separately for traceability.
+All application services depend on the database-neutral `ProjectRepository` interface. The Oracle adapter owns JDBC, connection pooling and Oracle SQL. No Oracle-specific classes or SQL types may enter the UPKM/domain layer. Customer database parsers and transformation planners are separate dialect adapters and must not use the internal persistence connection.
 
-### Evidence and Conflict Registry
-Stores provenance, extraction method, rule/parser version, confidence rationale, user confirmations and unresolved conflicts. Analysis engines must query this registry rather than treating inferred facts as ground truth.
+The initial Oracle adapter persists project metadata and immutable UPKM JSON snapshots in CLOBs. The artifact object store and append-only evidence/conflict journals remain separate stores at this milestone; moving those to Oracle is a later repository-adapter milestone.
 
-### Analysis Orchestrator
-Schedules deterministic analysis tasks, tracks dependencies, supports incremental recomputation and records reproducible analysis runs. It is workflow orchestration, not an autonomous LLM agent.
+## 4. Core subsystems
 
-### Legacy Discovery Engine
-Detects languages, frameworks, build systems, modules, APIs, ORM mappings, integration points, configuration and code dependencies. Initial focus is Java/Maven/Spring and JavaScript/AngularJS.
+- **Project and Intake Management:** project lifecycle, intake batches, artifact metadata, schema versions, incremental updates and access policy.
+- **Artifact and Format Adapter Layer:** format/version validation, parsing, normalized facts and diagnostics. No architecture decisions.
+- **Unified Project Knowledge Model:** canonical parser-independent model. Physical, logical and target data views stay distinct.
+- **Evidence and Conflict Registry:** provenance, extraction method, rule/parser version, confidence rationale, user confirmations and unresolved conflicts.
+- **Analysis Orchestrator:** deterministic workflow scheduling, incremental recomputation and reproducible runs; not an autonomous LLM agent.
+- **Legacy Discovery Engine:** languages, frameworks, build systems, modules, APIs, ORM mappings, integrations and configuration.
+- **Data Intelligence Engine:** physical, logical and target data views, lineage, mapping and data-quality findings.
+- **Architecture Intelligence Engine:** dependency graphs, coupling/cohesion, supported patterns, cycles and hotspots.
+- **Decision and Migration Planning Engine:** compatibility matrices, policies, quality attributes, risk and explicit approval.
+- **Transformation Workbench:** versioned deterministic recipes, diffs and reversible changes; original inputs remain immutable.
+- **Validation and Reconciliation:** compilation, static checks, tests, API comparisons, behavior characterization, data reconciliation and rollback verification.
+- **Reporting:** architecture maps, lineage, decision records, roadmaps, risk registers and validation reports.
 
-### Data Intelligence Engine
-Maintains physical, logical and target data views. Extracts tables, columns, keys, constraints, indexes, views, procedures, triggers, ORM mappings, SQL usage and lineage. Relationship discovery combines declared metadata and evidence-based inference. Candidate relationships require review when evidence is incomplete.
+## 5. Data model layers
 
-### Architecture Intelligence Engine
-Builds dependency graphs, evaluates coupling/cohesion, detects supported architectural patterns, identifies cycles and hotspots, and emits explainable findings. Findings link to source evidence.
-
-### Decision and Migration Planning Engine
-Uses explicit compatibility matrices, policy rules, target constraints, quality attributes and risk models. Every decision includes alternatives considered, evidence, rationale, assumptions, unresolved questions and approval status.
-
-### Transformation Workbench
-Applies deterministic recipes and templates to source or schema artifacts. Transformations are versioned, repeatable, reviewable and produce diffs. Never overwrite original source artifacts.
-
-### Validation and Reconciliation
-Supports compilation, static checks, tests, API contract comparison, behavior characterization, data reconciliation, performance/security checks and rollback verification. Executing builds or migrations requires an isolated workspace and explicit approval.
-
-### Reporting
-Produces legacy architecture maps, data lineage, target architecture, decision records, migration roadmaps, risk registers, review tasks and validation reports.
-
-## 4. Data model layers
-
-Aegis must keep three distinct data views:
-1. **Physical model:** database-specific objects and constraints as observed.
+1. **Physical model:** vendor-specific objects and constraints as observed.
 2. **Logical model:** business entities and relationships independent of database vendor.
 3. **Target model:** proposed destination structures, mappings and migration operations.
 
-Mapping between these views must be explicit and evidence-backed. Do not collapse them into one schema.
-
-## 5. Decision traceability
-
-Every non-trivial recommendation includes decision ID/status, context, candidate options, selected option (if approved), evidence references, rule or compatibility-matrix version, rationale and trade-offs, assumptions and unresolved risks, and human approver where required. A generated recommendation is not an approved decision.
+Mappings are explicit and evidence-backed. Never collapse the three views into one schema.
 
 ## 6. Technology strategy
 
-Technology selection is provisional until a spike and compatibility review are completed. Potential choices: Java implementation language; Maven multi-module; JavaParser or Eclipse JDT for Java AST; JSqlParser for supported SQL; Apache Tika for document extraction; JGraphT for graph algorithms; JSON Schema validation; PostgreSQL or embedded storage for metadata; JavaPoet and versioned templates for code generation; JUnit 5 and Testcontainers for isolated tests.
+Java 25 and Maven are the current implementation baseline. Oracle JDBC is confined to the internal persistence adapter. Customer database support is implemented through isolated dialect adapters. Verify license, security, compatibility and offline packaging before adopting additional dependencies. Runtime analysis must work offline after dependencies and rule packs are installed.
 
-Verify license, security, compatibility and offline packaging before adoption. Do not hard-code a Java/Spring/Hibernate combination until official compatibility and support matrices are checked for the selected release line.
-
-## 7. Modularity boundaries
-
-Suggested logical areas: aegis-domain, aegis-intake-api, aegis-artifact-store, aegis-parser-spi, aegis-parser-json, aegis-parser-sql, aegis-parser-java, aegis-parser-documents, aegis-parser-openapi, aegis-knowledge-model, aegis-evidence, aegis-analysis-core, aegis-data-intelligence, aegis-architecture-analysis, aegis-migration-planner, aegis-transformation, aegis-validation, aegis-reporting, aegis-cli (later), aegis-ui (later).
-
-These are candidate boundaries, not a mandate to create empty modules. Start with cohesive modules and introduce a module only when it has a stable responsibility and tests.
-
-## 8. Security and offline operation
+## 7. Security and offline operation
 
 - No AI/LLM/model client modules or provider abstractions.
 - No telemetry or external analytics by default.
 - No external upload of source or metadata.
-- Dependency resolution/build downloads may be needed during development, but runtime analysis must work offline after dependencies and rule packs are installed.
-- Make network access an explicit capability, disabled by default.
-- Encrypt sensitive artifacts at rest where applicable; support configurable retention and deletion.
-- Redact secrets in logs and reports.
-- Use read-only DB credentials for discovery.
+- Database credentials are environment/secret-manager inputs and never CLI arguments or committed config.
+- Use least-privilege Oracle schema credentials and TLS/wallet where required.
 - Never execute untrusted project code during static analysis.
+- Database schema changes are explicit operator actions; the application does not auto-migrate production schemas.
 
-## 9. Migration strategy
+## 8. Migration strategy
 
-Prefer incremental, verifiable migration where context allows. Evaluate Strangler Fig, modular extraction, API façade, event/data replication and phased cutover. Big-bang replacement is not the default recommendation.
+Prefer incremental, verifiable migration. Every plan addresses dependency order, data ownership, synchronization, compatibility, cutover criteria, rollback, reconciliation and monitoring.
 
-Every migration plan addresses scope and dependency order; data ownership and synchronization; backward compatibility; dual-run or shadow validation where appropriate; cutover criteria; rollback plan; data reconciliation; operational monitoring.
+## 9. Delivery sequence
 
-## 10. Quality attributes
-
-Target determinism and reproducibility, explainability and traceability, extensibility through parser/rule adapters, safety with untrusted inputs, offline operability, scalability for large repositories and schemas, incremental analysis, testability, maintainability, privacy and least privilege.
-
-## 11. Initial delivery sequence
-
-1. Domain vocabulary and UPKM model
-2. Intake API, schema validation and artifact registry
-3. Evidence and provenance model
-4. SQL DDL parser and data model extraction
-5. Java/Maven discovery
-6. Cross-source correlation and conflict handling
-7. Architecture/data lineage reports
+1. Domain vocabulary and UPKM
+2. Intake, schema validation and artifact registry
+3. Evidence/provenance
+4. SQL DDL and data extraction
+5. Java/build discovery
+6. Cross-source correlation
+7. Architecture/data lineage
 8. Target model and migration mapping
 9. Transformation recipes
 10. Validation and reconciliation
-11. UI and broader language/database adapters
+11. Oracle-backed internal persistence and broader database adapters
+12. UI and additional language/database adapters
 
 Each milestone requires fixtures, tests, documented limitations and reproducible examples.

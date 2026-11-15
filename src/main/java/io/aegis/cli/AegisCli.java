@@ -18,6 +18,9 @@ import io.aegis.parser.java.JavaSourceAnalyzer;
 import io.aegis.parser.java.JavaSourceToKnowledgeMapper;
 import io.aegis.transformation.JavaImportMigrationEngine;
 import io.aegis.transformation.OraclePostgresDdlPlanner;
+import io.aegis.persistence.oracle.OracleConnectionConfig;
+import io.aegis.persistence.oracle.OracleProjectRepository;
+import com.zaxxer.hikari.HikariDataSource;
 import java.nio.file.StandardCopyOption;
 
 import java.nio.charset.StandardCharsets;
@@ -56,6 +59,9 @@ public final class AegisCli {
                 case "plan" -> runPlan(args);
                 case "migrate-java-imports" -> runMigrateJavaImports(args);
                 case "plan-ddl-migration" -> runPlanDdlMigration(args);
+                case "db-check" -> runDbCheck(args);
+                case "store-intake" -> runStoreIntake(args);
+                case "load-model" -> runLoadModel(args);
                 default -> {
                     System.err.println("Unknown command: " + args[0]);
                     usage();
@@ -65,6 +71,49 @@ public final class AegisCli {
         } catch (Exception e) {
             System.err.println("Aegis error: " + e.getMessage());
             return 1;
+        }
+    }
+
+    private static int runDbCheck(String[] args) {
+        if (args.length != 1) {
+            System.err.println("Usage: aegis-modernization-engine db-check");
+            return 2;
+        }
+        try (HikariDataSource dataSource = OracleConnectionConfig.fromEnvironment().createDataSource()) {
+            new OracleProjectRepository(dataSource).verifyConnection();
+            System.out.println("{\"database\":\"ORACLE\",\"status\":\"CONNECTED\"}");
+            return 0;
+        }
+    }
+
+    private static int runStoreIntake(String[] args) throws Exception {
+        if (args.length != 2) {
+            System.err.println("Usage: aegis-modernization-engine store-intake <intake.json>");
+            return 2;
+        }
+        IntakeService.IntakeRequest request = IntakeService.readRequest(Path.of(args[1]));
+        ProjectKnowledgeModel model = new IntakeToKnowledgeModelMapper().map(request);
+        try (HikariDataSource dataSource = OracleConnectionConfig.fromEnvironment().createDataSource()) {
+            new OracleProjectRepository(dataSource).saveSnapshot(model);
+        }
+        System.out.println(JSON.writeValueAsString(new StoredProjectOutput(
+                model.project().id(), model.project().name(), model.analyzedAt(), "ORACLE")));
+        return 0;
+    }
+
+    private static int runLoadModel(String[] args) throws Exception {
+        if (args.length != 2) {
+            System.err.println("Usage: aegis-modernization-engine load-model <project-id>");
+            return 2;
+        }
+        try (HikariDataSource dataSource = OracleConnectionConfig.fromEnvironment().createDataSource()) {
+            var model = new OracleProjectRepository(dataSource).findLatestSnapshot(args[1]);
+            if (model.isEmpty()) {
+                System.err.println("No stored analysis snapshot found for project: " + args[1]);
+                return 3;
+            }
+            System.out.println(JSON.writeValueAsString(model.get()));
+            return 0;
         }
     }
 
@@ -241,6 +290,8 @@ public final class AegisCli {
     public record JavaImportMigrationOutput(JavaImportMigrationEngine.MigrationResult migration, boolean written) {}
     public record DdlMigrationOutput(SqlDdlParser.ParseResult sourceAnalysis,
                                      OraclePostgresDdlPlanner.MigrationPlan migrationPlan) {}
+    public record StoredProjectOutput(String projectId, String projectName,
+                                      java.time.Instant analyzedAt, String persistenceDatabase) {}
 
     private static boolean isHelp(String arg) {
         return "-h".equals(arg) || "--help".equals(arg) || "help".equals(arg);

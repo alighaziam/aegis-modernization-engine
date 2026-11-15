@@ -11,7 +11,7 @@ A rule-based engineering platform built from format-specific parsers and extract
 ## Initial modernization scenario
 
 **Legacy:** Java 8, legacy Spring, Oracle, AngularJS  
-**Target:** a supported modern Java release, compatible Spring Boot release, PostgreSQL, React.
+**Target:** a supported modern Java release, compatible Spring Boot release, a database selected per project (Oracle, PostgreSQL, SQL Server, MySQL, etc.), React.
 
 Exact framework/runtime versions must be selected through a maintained compatibility matrix and verified before implementation. Do not assume every newest version is mutually compatible.
 
@@ -41,6 +41,7 @@ The repository now contains an initial executable Java implementation:
 - A conservative logical-model and business-rule inference pass that derives candidate entities from physical DDL and validation/guard markers from source text; all inferred facts are marked `INFERRED`.
 - A deterministic target architecture and phased migration planner driven by an explicit target profile.
 - A guarded text transformation engine with expected-occurrence/hash preconditions, SHA-256 backups and rollback conflict checks.
+- An initial Oracle-backed internal persistence adapter for versioned UPKM snapshots, isolated behind a database-neutral repository interface.
 - A conservative Oracle-to-PostgreSQL DDL planner for supported `CREATE TABLE` syntax; it maps an explicit type/constraint subset, omits unsafe defaults and flags unsupported constructs for review.
 - A syntax-aware Java import migration preview for a strict Jakarta namespace allowlist (`javax.persistence`, `javax.validation`, `javax.servlet`, `javax.transaction`); it uses JDK compiler parse trees, never broad text replacement, and defaults to preview-only.
 - A generated-artifact integrity validator that checks expected hashes and rejects paths escaping the project root.
@@ -51,7 +52,7 @@ Unsupported SQL syntax is surfaced as a diagnostic requiring review. The parser 
 
 ## Build and run
 
-Requirements: JDK 25 and Apache Maven 3.9.11 or newer.
+Requirements: JDK 25, Apache Maven 3.9.11 or newer. Oracle Database 19c+ is required only when using Aegis persistent storage; analysis/parsing commands can still run without a database.
 
 ```bash
 mvn clean verify
@@ -70,6 +71,15 @@ java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar map-ddl ./project
 
 # Extract Java declarations/imports and merge them into the project UPKM
 java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar analyze-java ./src/main/java/com/acme/OrderService.java ./project-intake.json
+
+# Verify Aegis' internal Oracle connection (credentials supplied through environment variables)
+java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar db-check
+
+# Store an initial project UPKM snapshot in Aegis' internal Oracle database
+java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar store-intake ./project-intake.json
+
+# Load the latest stored snapshot
+java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar load-model <project-id>
 
 # Generate a review-required PostgreSQL DDL plan from supported Oracle CREATE TABLE statements
 java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar plan-ddl-migration ./schema-oracle.sql oracle app
@@ -108,7 +118,7 @@ A GitHub Actions workflow runs Java 25 compilation, tests, executable-JAR packag
 
 ## Status
 
-The project has an initial runtime foundation, not a production-ready modernization engine. Intake, evidence journaling, a canonical model, limited SQL/Java/OpenAPI analysis, technology discovery, migration planning, guarded transformations, rollback primitives and CLI are implemented at an early stage. Semantic and cross-module source analysis, additional language parsers, richer logical data-model inference, production-grade code/schema transformations and broad integration tests remain future milestones. The Oracle/PostgreSQL planner does not execute SQL, migrate data, convert PL/SQL, sequences, triggers, indexes or every Oracle datatype; generated DDL is a review artifact, not an executable migration guarantee. The current Java import migrator is intentionally limited to four package roots and must not be interpreted as a complete Java EE/Jakarta migration. Supported syntax and technology/version matrices must be expanded only with executable tests.
+The project has an initial runtime foundation, not a production-ready modernization engine. Intake, evidence journaling, a canonical model, limited SQL/Java/OpenAPI analysis, technology discovery, migration planning, guarded transformations, rollback primitives and CLI are implemented at an early stage. Semantic and cross-module source analysis, additional language parsers, richer logical data-model inference, production-grade code/schema transformations and broad integration tests remain future milestones. Aegis internal persistence is Oracle Database 19c+; see `docs/Persistence-and-Database-Portability.md` and `db/oracle/V001__aegis_core.sql`. Set `AEGIS_ORACLE_JDBC_URL`, `AEGIS_ORACLE_USER`, and `AEGIS_ORACLE_PASSWORD`; optional pool settings are documented. The internal Oracle adapter stores project metadata and append-only UPKM snapshots. It does not yet move artifact objects or evidence/conflict journals into Oracle. Customer source/target databases remain independent and selectable per project; Oracle is not a forced target. The Oracle/PostgreSQL planner does not execute SQL, migrate data, convert PL/SQL, sequences, triggers, indexes or every Oracle datatype; generated DDL is a review artifact, not an executable migration guarantee. The current Java import migrator is intentionally limited to four package roots and must not be interpreted as a complete Java EE/Jakarta migration. Supported syntax and technology/version matrices must be expanded only with executable tests.
 
 ## License
 
