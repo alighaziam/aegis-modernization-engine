@@ -49,28 +49,30 @@ Unsupported SQL syntax is surfaced as a diagnostic requiring review. The parser 
 
 ## Build and run
 
-Requirements: JDK 25 and Gradle 9.2.1 or newer compatible with Java 25.
+Requirements: JDK 25 and Apache Maven 3.9.11 or newer.
 
 ```bash
-gradle clean test
-gradle installDist
+mvn clean verify
+
+# Run the packaged CLI
+java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar --help
 
 # Validate and register artifacts described by an intake JSON file
-build/install/aegis-modernization-engine/bin/aegis-modernization-engine intake ./project-intake.json ./aegis-store
+java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar intake ./project-intake.json ./aegis-store
 
 # Parse the supported SQL DDL subset and print a JSON result
-build/install/aegis-modernization-engine/bin/aegis-modernization-engine parse-ddl ./schema.sql postgresql
+java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar parse-ddl ./schema.sql postgresql
 
 # Merge parsed DDL into the project's canonical physical data model (UPKM)
-build/install/aegis-modernization-engine/bin/aegis-modernization-engine map-ddl ./project-intake.json ./schema.sql postgresql orders-db public 16
+java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar map-ddl ./project-intake.json ./schema.sql postgresql orders-db public 16
 
 # Extract Java declarations/imports and merge them into the project UPKM
-build/install/aegis-modernization-engine/bin/aegis-modernization-engine analyze-java ./src/main/java/com/acme/OrderService.java ./project-intake.json
+java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar analyze-java ./src/main/java/com/acme/OrderService.java ./project-intake.json
 ```
 
 Exit codes: `0` means completed without diagnostics/warnings, `1` means execution or validation error, `2` means invalid command usage, and `3` means processing completed with review diagnostics or intake warnings.
 
-A GitHub Actions workflow runs Java 25 compilation, tests, and distribution assembly on pushes and pull requests to `main`. The `map-ddl` command combines the validated project intake, technology profile, SQL parse result, and physical database model into one JSON output; it does not infer logical business relationships. The `analyze-java` command uses the JDK parser only (`-proc:none`), records declared imports as explicit dependencies, and does not perform semantic resolution or claim that every import is used. The dependency graph only detects cycles among components already identified in the UPKM; it does not infer hidden runtime calls. The `detect-tech`, `analyze-behavior`, `analyze-openapi`, `infer-model` and `plan` commands expose the new deterministic discovery and planning capabilities. Technology detection is evidence-based and incomplete when build metadata is absent. OpenAPI external references are not fetched. Logical entities, cardinalities and source-derived business rules are candidates, not verified business truth. The transformation engine applies only explicitly supplied literal replacements; it is not yet a semantic Java refactoring engine. Artifact validation verifies hashes but does not replace compilation, integration, security or performance testing.
+A GitHub Actions workflow runs Java 25 compilation, tests, executable-JAR packaging and a CLI smoke test with Maven on pushes and pull requests to `main`. The `map-ddl` command combines the validated project intake, technology profile, SQL parse result, and physical database model into one JSON output; it does not infer logical business relationships. The `analyze-java` command uses the JDK parser only (`-proc:none`), records declared imports as explicit dependencies, and does not perform semantic resolution or claim that every import is used. The dependency graph only detects cycles among components already identified in the UPKM; it does not infer hidden runtime calls. The `detect-tech`, `analyze-behavior`, `analyze-openapi`, `infer-model` and `plan` commands expose the new deterministic discovery and planning capabilities. Technology detection is evidence-based and incomplete when build metadata is absent. OpenAPI external references are not fetched. Logical entities, cardinalities and source-derived business rules are candidates, not verified business truth. The transformation engine applies only explicitly supplied literal replacements; it is not yet a semantic Java refactoring engine. Artifact validation verifies hashes but does not replace compilation, integration, security or performance testing.
 
 ## Repository map
 
@@ -95,7 +97,7 @@ A GitHub Actions workflow runs Java 25 compilation, tests, and distribution asse
 
 ## Status
 
-The project has an initial runtime foundation, not a production-ready modernization engine. Intake, evidence journaling, a canonical model, a limited SQL parser and CLI are implemented. Framework/version discovery, semantic and cross-module source analysis, additional language parsers, OpenAPI ingestion, logical data-model inference, architecture decision automation, migration planning, transformation engines, rollback generation and broad integration tests remain future milestones. Supported syntax and technology/version matrices must be expanded only with executable tests.
+The project has an initial runtime foundation, not a production-ready modernization engine. Intake, evidence journaling, a canonical model, limited SQL/Java/OpenAPI analysis, technology discovery, migration planning, guarded transformations, rollback primitives and CLI are implemented at an early stage. Semantic and cross-module source analysis, additional language parsers, richer logical data-model inference, production-grade code/schema transformations and broad integration tests remain future milestones. Supported syntax and technology/version matrices must be expanded only with executable tests.
 
 ## License
 

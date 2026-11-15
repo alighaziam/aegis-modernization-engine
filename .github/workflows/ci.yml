@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   verify:
-    name: Java 25 / Gradle verification
+    name: Java 25 / Maven verification
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -23,14 +23,15 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
+          cache: maven
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - name: Set up Maven
+        uses: stCarolas/setup-maven@v5
         with:
-          gradle-version: '9.2.1'
+          maven-version: '3.9.11'
 
-      - name: Compile and test
-        run: gradle --no-daemon clean test
+      - name: Compile, test and package
+        run: mvn --batch-mode --no-transfer-progress clean verify
 
-      - name: Build distribution
-        run: gradle --no-daemon installDist
+      - name: Smoke-test executable CLI
+        run: java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar --help
