@@ -19,6 +19,7 @@ import io.aegis.parser.java.JavaSourceAnalyzer;
 import io.aegis.parser.java.JavaSourceToKnowledgeMapper;
 import io.aegis.transformation.JavaImportMigrationEngine;
 import io.aegis.transformation.OraclePostgresDdlPlanner;
+import io.aegis.transformation.DatabaseMigrationPlanner;
 import io.aegis.persistence.oracle.OracleArtifactRepository;
 import io.aegis.persistence.oracle.OracleConnectionConfig;
 import io.aegis.persistence.oracle.OracleProjectRepository;
@@ -325,15 +326,18 @@ public final class AegisCli {
     }
 
     private static int runPlanDdlMigration(String[] args) throws Exception {
-        if (args.length != 4 || !"oracle".equalsIgnoreCase(args[2])) {
-            System.err.println("Usage: aegis-modernization-engine plan-ddl-migration <schema.sql> oracle <target-schema>");
+        if (args.length != 4 && args.length != 5) {
+            System.err.println("Usage: aegis-modernization-engine plan-ddl-migration <schema.sql> <source-dialect> <target-dialect> <target-schema>");
             return 2;
         }
         Path input = Path.of(args[1]);
+        String sourceDialect = args.length == 4 ? args[2] : args[2];
+        String targetDialect = args.length == 4 ? "postgresql" : args[3];
+        String targetSchema = args.length == 4 ? args[3] : args[4];
         String sql = Files.readString(input, StandardCharsets.UTF_8);
-        SqlDdlParser.ParseResult parsed = new SqlDdlParser().parse(sql, input.getFileName().toString(), "oracle");
-        OraclePostgresDdlPlanner.MigrationPlan plan =
-                new OraclePostgresDdlPlanner().plan(parsed, args[3]);
+        SqlDdlParser.ParseResult parsed = new SqlDdlParser().parse(sql, input.getFileName().toString(), sourceDialect);
+        DatabaseMigrationPlanner.MigrationPlan plan =
+                new DatabaseMigrationPlanner().plan(parsed, targetDialect, targetSchema);
         System.out.println(JSON.writeValueAsString(new DdlMigrationOutput(parsed, plan)));
         return plan.diagnostics().isEmpty() ? 0 : 3;
     }
@@ -382,7 +386,7 @@ public final class AegisCli {
     public record OpenApiAnalysisOutput(ProjectKnowledgeModel knowledgeModel, OpenApiYamlAnalyzer.Analysis openApi) {}
     public record JavaImportMigrationOutput(JavaImportMigrationEngine.MigrationResult migration, boolean written) {}
     public record DdlMigrationOutput(SqlDdlParser.ParseResult sourceAnalysis,
-                                     OraclePostgresDdlPlanner.MigrationPlan migrationPlan) {}
+                                     DatabaseMigrationPlanner.MigrationPlan migrationPlan) {}
     public record StoredArtifactOutput(String projectId, String artifactId, String sha256, long sizeBytes, String persistenceDatabase) {}
     public record JournalWriteOutput(String projectId, String recordId, String recordType, String persistenceDatabase) {}
     public record DbCheckOutput(String database, String status, java.util.List<String> presentTables,
