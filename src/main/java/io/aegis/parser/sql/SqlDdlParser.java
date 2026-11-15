@@ -99,7 +99,7 @@ public final class SqlDdlParser {
     }
 
     private Column parseColumn(String text, String source, int line, List\u003cDiagnostic\u003e diagnostics) {
-        Matcher m = Pattern.compile("(?is)^([\\"]?[A-Za-z0-9_$#]+[\\"]?)\\s+(.+)$").matcher(text.trim());
+        Matcher m = Pattern.compile("(?is)^([\"]?[A-Za-z0-9_$#]+[\"]?)\\s+(.+)$").matcher(text.trim());
         if (!m.find()) { diagnostics.add(diag("UNPARSED_COLUMN", "Could not parse column definition: " + abbreviate(text), line)); return null; }
         String name = cleanName(m.group(1));
         String rest = m.group(2).trim();
@@ -117,7 +117,7 @@ public final class SqlDdlParser {
     private Constraint parseConstraint(String suppliedName, String definition, String source, int line,
                                        List\u003cDiagnostic\u003e diagnostics) {
         String text = definition.trim(); String name = suppliedName;
-        Matcher named = Pattern.compile("(?is)^CONSTRAINT\\s+([\\w.$#\\"]+)\\s+(.*)$").matcher(text);
+        Matcher named = Pattern.compile("(?is)^CONSTRAINT\\s+([\\w.$#\"]+)\\s+(.*)$").matcher(text);
         if (named.find()) { if (name == null) name = cleanName(named.group(1)); text = named.group(2).trim(); }
         String upper = text.toUpperCase(Locale.ROOT);
         if (upper.startsWith("PRIMARY KEY")) return new Constraint(name == null ? "PK_" + line : name, "PRIMARY_KEY", insideList(text), null, List.of(), locator(source, line));
