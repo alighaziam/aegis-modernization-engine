@@ -34,7 +34,7 @@ The repository now contains an initial executable Java implementation:
 - Strict JSON intake validation and content-addressed artifact registration in `src/main/java/io/aegis/intake`.
 - An offline SQL DDL parser for a deliberately limited Oracle/PostgreSQL subset in `src/main/java/io/aegis/parser/sql`.
 - Append-only evidence and conflict journals in `src/main/java/io/aegis/evidence`.
-- A command-line entry point for intake and DDL parsing in `src/main/java/io/aegis/cli`.
+- A command-line entry point for intake, DDL parsing and UPKM mapping in `src/main/java/io/aegis/cli`.
 
 Unsupported SQL syntax is surfaced as a diagnostic requiring review. The parser is not a complete Oracle or PostgreSQL grammar and must not be treated as one.
 
