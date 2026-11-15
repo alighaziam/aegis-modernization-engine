@@ -16,10 +16,12 @@ import io.aegis.parser.sql.SqlDdlParser;
 import io.aegis.parser.sql.SqlDdlToKnowledgeMapper;
 import io.aegis.parser.java.JavaSourceAnalyzer;
 import io.aegis.parser.java.JavaSourceToKnowledgeMapper;
+import io.aegis.transformation.JavaImportMigrator;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 
 /** Command-line entry point for deterministic, offline Aegis operations. */
 public final class AegisCli {
@@ -51,6 +53,7 @@ public final class AegisCli {
                 case "analyze-openapi" -> runAnalyzeOpenApi(args);
                 case "infer-model" -> runInferModel(args);
                 case "plan" -> runPlan(args);
+                case "migrate-java-imports" -> runMigrateJavaImports(args);
                 default -> {
                     System.err.println("Unknown command: " + args[0]);
                     usage();
@@ -191,7 +194,34 @@ public final class AegisCli {
         return 0;
     }
 
+    private static int runMigrateJavaImports(String[] args) throws Exception {
+        if (args.length != 3) {
+            System.err.println("Usage: aegis-modernization-engine migrate-java-imports <input.java> <new-output.java>");
+            return 2;
+        }
+        Path input = Path.of(args[1]).toAbsolutePath().normalize();
+        Path output = Path.of(args[2]).toAbsolutePath().normalize();
+        if (input.equals(output)) {
+            System.err.println("Input and output must be different files; original source is never overwritten.");
+            return 2;
+        }
+        String source = Files.readString(input, StandardCharsets.UTF_8);
+        JavaImportMigrator.MigrationPlan plan = new JavaImportMigrator().plan(source, input.getFileName().toString());
+        if (!plan.safeToWrite()) {
+            System.out.println(JSON.writeValueAsString(plan));
+            return 3;
+        }
+        if (!plan.changed()) {
+            System.out.println(JSON.writeValueAsString(plan));
+            return 0;
+        }
+        Files.writeString(output, plan.migratedSource(), StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+        System.out.println(JSON.writeValueAsString(new JavaImportMigrationOutput(output.toString(), plan)));
+        return 0;
+    }
+
     public record OpenApiAnalysisOutput(ProjectKnowledgeModel knowledgeModel, OpenApiYamlAnalyzer.Analysis openApi) {}
+    public record JavaImportMigrationOutput(String outputFile, JavaImportMigrator.MigrationPlan migration) {}
 
     private static boolean isHelp(String arg) {
         return "-h".equals(arg) || "--help".equals(arg) || "help".equals(arg);
@@ -213,6 +243,8 @@ public final class AegisCli {
                       Build a project UPKM and merge the parsed physical database schema.
                   analyze-java <source.java> <intake.json>
                       Extract Java declarations and imports into the project UPKM.
+                  analyze-behavior <source.java>
+                      Extract syntactic call sites, guards and thrown exceptions.
                   detect-tech <pom.xml|build.gradle|source.java>...
                       Detect supported Java, Spring and library markers and versions.
                   analyze-openapi <openapi.yaml|json> <intake.json>
@@ -221,6 +253,8 @@ public final class AegisCli {
                       Infer logical entities and candidate business rules; review is required.
                   plan <intake.json> <java-version> <framework> <framework-version> <database> <frontend> <deployment>
                       Generate an explainable target architecture and migration sequence.
+                  migrate-java-imports <input.java> <new-output.java>
+                      Safely migrate allowlisted javax imports to Jakarta imports; never overwrites input.
 
                 Exit codes:
                   0  completed without review warnings

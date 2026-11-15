@@ -28,7 +28,7 @@ Exact framework/runtime versions must be selected through a maintained compatibi
 
 ## Current implementation
 
-The repository now contains an initial executable Java implementation:
+The repository contains an initial executable Java implementation:
 
 - Canonical UPKM domain records in `src/main/java/io/aegis/domain`.
 - Strict JSON intake validation and content-addressed artifact registration in `src/main/java/io/aegis/intake`.
@@ -41,9 +41,10 @@ The repository now contains an initial executable Java implementation:
 - A conservative logical-model and business-rule inference pass that derives candidate entities from physical DDL and validation/guard markers from source text; all inferred facts are marked `INFERRED`.
 - A deterministic target architecture and phased migration planner driven by an explicit target profile.
 - A guarded text transformation engine with expected-occurrence/hash preconditions, SHA-256 backups and rollback conflict checks.
+- A syntax-aware Java import migrator for an explicit Jakarta allowlist: `javax.persistence`, `javax.validation` and `javax.servlet`. It parses Java with the JDK compiler tree API, changes only import declarations, refuses files with syntax errors, and writes to a new file without overwriting the source. It does not resolve symbols or claim semantic compatibility.
 - A generated-artifact integrity validator that checks expected hashes and rejects paths escaping the project root.
 - Append-only evidence and conflict journals in `src/main/java/io/aegis/evidence`.
-- A command-line entry point for intake, DDL parsing, Java analysis and UPKM mapping in `src/main/java/io/aegis/cli`.
+- A command-line entry point for intake, analysis, planning and the guarded Java import migration.
 
 Unsupported SQL syntax is surfaced as a diagnostic requiring review. The parser is not a complete Oracle or PostgreSQL grammar and must not be treated as one.
 
@@ -53,26 +54,29 @@ Requirements: JDK 25 and Apache Maven 3.9.11 or newer.
 
 ```bash
 mvn clean verify
-
-# Run the packaged CLI
 java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar --help
 
-# Validate and register artifacts described by an intake JSON file
+# Register artifacts described by an intake JSON file
 java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar intake ./project-intake.json ./aegis-store
 
-# Parse the supported SQL DDL subset and print a JSON result
-java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar parse-ddl ./schema.sql postgresql
+# Parse the supported SQL DDL subset
+java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar parse-ddl ./schema.sql oracle
 
-# Merge parsed DDL into the project's canonical physical data model (UPKM)
-java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar map-ddl ./project-intake.json ./schema.sql postgresql orders-db public 16
+# Merge parsed DDL into the project's canonical physical data model
+java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar map-ddl ./project-intake.json ./schema.sql oracle orders-db public 19c
 
 # Extract Java declarations/imports and merge them into the project UPKM
 java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar analyze-java ./src/main/java/com/acme/OrderService.java ./project-intake.json
+
+# Create a Jakarta-migrated copy; original source is never overwritten
+java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar migrate-java-imports ./OrderService.java ./generated/OrderService.java
 ```
 
 Exit codes: `0` means completed without diagnostics/warnings, `1` means execution or validation error, `2` means invalid command usage, and `3` means processing completed with review diagnostics or intake warnings.
 
-A GitHub Actions workflow runs Java 25 compilation, tests, executable-JAR packaging and a CLI smoke test with Maven on pushes and pull requests to `main`. The `map-ddl` command combines the validated project intake, technology profile, SQL parse result, and physical database model into one JSON output; it does not infer logical business relationships. The `analyze-java` command uses the JDK parser only (`-proc:none`), records declared imports as explicit dependencies, and does not perform semantic resolution or claim that every import is used. The dependency graph only detects cycles among components already identified in the UPKM; it does not infer hidden runtime calls. The `detect-tech`, `analyze-behavior`, `analyze-openapi`, `infer-model` and `plan` commands expose the new deterministic discovery and planning capabilities. Technology detection is evidence-based and incomplete when build metadata is absent. OpenAPI external references are not fetched. Logical entities, cardinalities and source-derived business rules are candidates, not verified business truth. The transformation engine applies only explicitly supplied literal replacements; it is not yet a semantic Java refactoring engine. Artifact validation verifies hashes but does not replace compilation, integration, security or performance testing.
+The `migrate-java-imports` command currently performs only the three explicit namespace mappings documented above. It does not rewrite `javax.annotation`, arbitrary `javax.*` imports, package declarations, reflection strings, XML, persistence descriptors or framework configuration. Review the generated diff and run compilation, tests and framework-specific migration checks before accepting it. The command refuses to overwrite either the input file or an existing output file.
+
+The Java source analyzer uses the JDK parser only (`-proc:none`), records declared imports as explicit dependencies, and does not perform semantic resolution or claim that every import is used. The dependency graph only detects cycles among components already identified in the UPKM; it does not infer hidden runtime calls. Technology detection is evidence-based and incomplete when build metadata is absent. OpenAPI external references are not fetched. Logical entities, cardinalities and source-derived business rules are candidates, not verified business truth. The transformation engine applies only explicitly supplied literal replacements; it is not a general semantic Java refactoring engine. Artifact validation verifies hashes but does not replace compilation, integration, security or performance testing.
 
 ## Repository map
 
@@ -97,7 +101,7 @@ A GitHub Actions workflow runs Java 25 compilation, tests, executable-JAR packag
 
 ## Status
 
-The project has an initial runtime foundation, not a production-ready modernization engine. Intake, evidence journaling, a canonical model, limited SQL/Java/OpenAPI analysis, technology discovery, migration planning, guarded transformations, rollback primitives and CLI are implemented at an early stage. Semantic and cross-module source analysis, additional language parsers, richer logical data-model inference, production-grade code/schema transformations and broad integration tests remain future milestones. Supported syntax and technology/version matrices must be expanded only with executable tests.
+The project has an initial runtime foundation, not a production-ready modernization engine. Intake, evidence journaling, a canonical model, limited SQL/Java/OpenAPI analysis, technology discovery, migration planning, guarded transformations, rollback primitives and CLI are implemented at an early stage. Broad semantic and cross-module source analysis, additional language parsers, richer logical data-model inference, production-grade code/schema transformations, compatibility matrices, isolated build execution and integration testing remain future milestones. Supported syntax and technology/version matrices must be expanded only with executable tests.
 
 ## License
 
