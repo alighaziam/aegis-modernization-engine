@@ -17,10 +17,10 @@ public final class SqlDdlParser {
     public ParseResult parse(String sql, String sourceName, String dialect) {
         if (sql == null) throw new IllegalArgumentException("SQL input is required");
         String vendor = detectVendor(dialect);
-        List\u003cTable\u003e tables = new ArrayList\u003e();
-        List\u003cIndex\u003e indexes = new ArrayList\u003e();
-        List\u003cDiagnostic\u003e diagnostics = new ArrayList\u003e();
-        List\u003cEvidenceDraft\u003e evidence = new ArrayList\u003e();
+        List\u003cTable\u003e tables = new ArrayList\u003c\u003e();
+        List\u003cIndex\u003e indexes = new ArrayList\u003c\u003e();
+        List\u003cDiagnostic\u003e diagnostics = new ArrayList\u003c\u003e();
+        List\u003cEvidenceDraft\u003e evidence = new ArrayList\u003c\u003e();
         List\u003cStatement\u003e statements = splitStatements(sql);
         for (Statement statement : statements) {
             String text = statement.text().trim();
@@ -54,7 +54,7 @@ public final class SqlDdlParser {
                 }
                 Constraint constraint = parseConstraint(constraintName, definition, sourceName, statement.line(), diagnostics);
                 if (constraint != null) {
-                    List\u003cConstraint\u003e changed = new ArrayList\u003e(table.constraints()); changed.add(constraint);
+                    List\u003cConstraint\u003e changed = new ArrayList\u003c\u003e(table.constraints()); changed.add(constraint);
                     replaceTable(tables, table, new Table(table.name(), table.columns(), changed, table.indexes(), table.locator()));
                     evidence.add(new EvidenceDraft("constraint:" + tableName + "." + constraint.name(), sourceName, statement.line(), "ALTER TABLE ADD", "direct", "high"));
                 }
@@ -65,7 +65,7 @@ public final class SqlDdlParser {
         for (Index index : indexes) {
             Table table = findTable(tables, index.tableName());
             if (table != null) {
-                List\u003cIndex\u003e changed = new ArrayList\u003e(table.indexes()); changed.add(index);
+                List\u003cIndex\u003e changed = new ArrayList\u003c\u003e(table.indexes()); changed.add(index);
                 replaceTable(tables, table, new Table(table.name(), table.columns(), table.constraints(), changed, table.locator()));
             } else diagnostics.add(diag("INDEX_TABLE_NOT_FOUND", "Index references table not found in parsed DDL: " + index.tableName(), 1));
         }
@@ -74,8 +74,8 @@ public final class SqlDdlParser {
 
     private Table parseTable(String name, String body, String source, int line,
                              List\u003cDiagnostic\u003e diagnostics, List\u003cEvidenceDraft\u003e evidence) {
-        List\u003cColumn\u003e columns = new ArrayList\u003e();
-        List\u003cConstraint\u003e constraints = new ArrayList\u003e();
+        List\u003cColumn\u003e columns = new ArrayList\u003c\u003e();
+        List\u003cConstraint\u003e constraints = new ArrayList\u003c\u003e();
         for (String part : splitTopLevel(body)) {
             String item = part.trim();
             if (item.isEmpty()) continue;
@@ -133,7 +133,7 @@ public final class SqlDdlParser {
     }
 
     private static List\u003cStatement\u003e splitStatements(String sql) {
-        List\u003cStatement\u003e out = new ArrayList\u003e(); StringBuilder current = new StringBuilder();
+        List\u003cStatement\u003e out = new ArrayList\u003c\u003e(); StringBuilder current = new StringBuilder();
         boolean single = false, quoted = false, lineComment = false, blockComment = false; int line = 1, startLine = 1;
         for (int i = 0; i \u003c sql.length(); i++) {
             char c = sql.charAt(i), next = i + 1 \u003c sql.length() ? sql.charAt(i + 1) : 0;
@@ -151,7 +151,7 @@ public final class SqlDdlParser {
     }
 
     private static List\u003cString\u003e splitTopLevel(String body) {
-        List\u003cString\u003e parts = new ArrayList\u003e(); int depth = 0; boolean single = false, quoted = false; int start = 0;
+        List\u003cString\u003e parts = new ArrayList\u003c\u003e(); int depth = 0; boolean single = false, quoted = false; int start = 0;
         for (int i = 0; i \u003c body.length(); i++) { char c = body.charAt(i);
             if (c == '\'' && !quoted) single = !single; else if (c == '"' && !single) quoted = !quoted;
             if (!single && !quoted) { if (c == '(') depth++; else if (c == ')') depth--; else if (c == ',' && depth == 0) { parts.add(body.substring(start, i)); start = i + 1; } }
@@ -169,7 +169,7 @@ public final class SqlDdlParser {
     }
 
     private static List\u003cString\u003e splitIdentifiers(String text) {
-        List\u003cString\u003e out = new ArrayList\u003e(); for (String item : text.split(",")) out.add(cleanName(item)); return List.copyOf(out);
+        List\u003cString\u003e out = new ArrayList\u003c\u003e(); for (String item : text.split(",")) out.add(cleanName(item)); return List.copyOf(out);
     }
     private static List\u003cString\u003e insideList(String text) { int a = text.indexOf('('), b = text.lastIndexOf(')'); return a \u003c 0 || b \u003c a ? List.of() : splitIdentifiers(text.substring(a + 1, b)); }
     private static String cleanName(String value) { return value == null ? null : value.trim().replace("\"", "").replaceAll("\\s+", ""); }
