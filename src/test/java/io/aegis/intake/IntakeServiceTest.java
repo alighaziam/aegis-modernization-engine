@@ -70,4 +70,36 @@ class IntakeServiceTest {
                 .resolve(report.artifacts().get(0).sha256())));
         assertTrue(Files.exists(tempDir.resolve("store/metadata/demo-batch-1.json")));
     }
+    @Test
+    void rejectsArtifactSymlinkThatEscapesIntakeDirectory() throws Exception {
+        Path intakeDir = tempDir.resolve("intake");
+        Files.createDirectories(intakeDir);
+        Path outside = tempDir.resolve("outside.sql");
+        Files.writeString(outside, "CREATE TABLE outside_table (id BIGINT);");
+        Path link = intakeDir.resolve("escape.sql");
+        Files.createSymbolicLink(link, outside);
+
+        Path request = intakeDir.resolve("intake.json");
+        Files.writeString(request, """
+                {
+                  "schemaVersion": "1.0",
+                  "project": {"id": "demo", "name": "Demo"},
+                  "intake": {
+                    "batchId": "batch-escape",
+                    "mode": "single",
+                    "artifacts": [{
+                      "artifactId": "escape",
+                      "category": "database_metadata",
+                      "format": "sql",
+                      "origin": "manual",
+                      "location": "escape.sql"
+                    }]
+                  }
+                }
+                """);
+
+        assertThrows(IntakeService.IntakeException.class,
+                () -> new IntakeService(tempDir.resolve("store")).ingest(request));
+    }
+
 }
