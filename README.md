@@ -61,13 +61,13 @@ java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar --help
 java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar intake ./project-intake.json ./aegis-store
 
 # Parse the supported SQL DDL subset and print a JSON result
-build/install/aegis-modernization-engine/bin/aegis-modernization-engine parse-ddl ./schema.sql postgresql
+java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar parse-ddl ./schema.sql postgresql
 
 # Merge parsed DDL into the project's canonical physical data model (UPKM)
-build/install/aegis-modernization-engine/bin/aegis-modernization-engine map-ddl ./project-intake.json ./schema.sql postgresql orders-db public 16
+java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar map-ddl ./project-intake.json ./schema.sql postgresql orders-db public 16
 
 # Extract Java declarations/imports and merge them into the project UPKM
-build/install/aegis-modernization-engine/bin/aegis-modernization-engine analyze-java ./src/main/java/com/acme/OrderService.java ./project-intake.json
+java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar analyze-java ./src/main/java/com/acme/OrderService.java ./project-intake.json
 ```
 
 Exit codes: `0` means completed without diagnostics/warnings, `1` means execution or validation error, `2` means invalid command usage, and `3` means processing completed with review diagnostics or intake warnings.
