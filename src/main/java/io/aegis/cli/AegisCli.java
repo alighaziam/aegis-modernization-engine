@@ -24,6 +24,7 @@ import io.aegis.persistence.OracleArtifactDigest;
 import io.aegis.persistence.oracle.OracleArtifactRepository;
 import io.aegis.persistence.oracle.OracleConnectionConfig;
 import io.aegis.persistence.oracle.OracleProjectRepository;
+import io.aegis.persistence.oracle.OracleSchemaVerifier;
 import io.aegis.persistence.oracle.OracleIntakeRepository;
 import com.zaxxer.hikari.HikariDataSource;
 import java.nio.file.StandardCopyOption;
@@ -90,15 +91,17 @@ public final class AegisCli {
         return 0;
     }
 
-    private static int runDbCheck(String[] args) {
+    private static int runDbCheck(String[] args) throws Exception {
         if (args.length != 1) {
             System.err.println("Usage: aegis-modernization-engine db-check");
             return 2;
         }
         try (HikariDataSource dataSource = OracleConnectionConfig.fromEnvironment().createDataSource()) {
             new OracleProjectRepository(dataSource).verifyConnection();
-            System.out.println("{\"database\":\"ORACLE\",\"status\":\"CONNECTED\"}");
-            return 0;
+            var schema = new OracleSchemaVerifier().inspect(dataSource);
+            System.out.println(JSON.writeValueAsString(new DbCheckOutput("ORACLE",
+                    schema.complete() ? "READY" : "SCHEMA_INCOMPLETE", schema.presentTables(), schema.missingTables())));
+            return schema.complete() ? 0 : 3;
         }
     }
 
@@ -329,6 +332,8 @@ public final class AegisCli {
     public record DdlMigrationOutput(SqlDdlParser.ParseResult sourceAnalysis,
                                      OraclePostgresDdlPlanner.MigrationPlan migrationPlan) {}
     public record StoredArtifactOutput(String projectId, String artifactId, String sha256, long sizeBytes, String persistenceDatabase) {}
+    public record DbCheckOutput(String database, String status, java.util.List<String> presentTables,
+                                java.util.List<String> missingTables) {}
     public record StoredProjectOutput(String projectId, String projectName,
                                       java.time.Instant analyzedAt, String persistenceDatabase) {}
     public record StoredIntakeOutput(String projectId, String projectName, int persistedArtifacts,
