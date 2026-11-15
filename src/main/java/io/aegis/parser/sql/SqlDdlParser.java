@@ -175,7 +175,18 @@ public final class SqlDdlParser {
     private static String cleanName(String value) { return value == null ? null : value.trim().replace("\"", "").replaceAll("\\s+", ""); }
     private static String locator(String source, int line) { return source + ":" + line; }
     private static Integer integer(String s) { try { return s == null ? null : Integer.valueOf(s); } catch (NumberFormatException e) { return null; } }
-    private static String detectVendor(String dialect) { if (dialect == null) return "UNKNOWN"; String d = dialect.toLowerCase(Locale.ROOT); return d.contains("oracle") ? "ORACLE" : d.contains("postgres") || d.equals("postgresql") ? "POSTGRESQL" : "UNKNOWN"; }
+    private static String detectVendor(String dialect) {
+        if (dialect == null || dialect.isBlank()) return "UNKNOWN";
+        String normalized = dialect.trim().toLowerCase(Locale.ROOT).replace('_', '-');
+        if (normalized.equals("oracle") || normalized.startsWith("oracle-")) return "ORACLE";
+        if (normalized.equals("postgres") || normalized.equals("postgresql") || normalized.startsWith("postgresql-")) return "POSTGRESQL";
+        if (normalized.equals("mysql") || normalized.startsWith("mysql-")) return "MYSQL";
+        if (normalized.equals("mariadb") || normalized.startsWith("mariadb-")) return "MARIADB";
+        if (normalized.equals("sqlserver") || normalized.equals("sql-server") || normalized.equals("mssql")
+                || normalized.startsWith("sqlserver-")) return "SQLSERVER";
+        if (normalized.equals("db2") || normalized.startsWith("db2-")) return "DB2";
+        return "UNKNOWN";
+    }
     private static String abbreviate(String s) { return s.length() \u003e 180 ? s.substring(0, 180) + "..." : s; }
     private static Diagnostic diag(String code, String message, int line) { return new Diagnostic(code, message, line, "REVIEW_REQUIRED"); }
     private static Table findTable(List\u003cTable\u003e tables, String name) { for (Table t : tables) if (t.name().equalsIgnoreCase(name)) return t; return null; }

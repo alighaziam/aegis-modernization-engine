@@ -129,7 +129,7 @@ public final class AegisCli {
 
     private static int runParseDdl(String[] args) throws Exception {
         if (args.length < 3 || args.length > 4) {
-            System.err.println("Usage: aegis-modernization-engine parse-ddl <schema.sql> <oracle|postgresql> [source-name]");
+            System.err.println("Usage: aegis-modernization-engine parse-ddl <schema.sql> <oracle|postgresql|mysql|mariadb|sqlserver|db2> [source-name]");
             return 2;
         }
         Path input = Path.of(args[1]);
@@ -142,7 +142,7 @@ public final class AegisCli {
 
     private static int runMapDdl(String[] args) throws Exception {
         if (args.length < 6 || args.length > 7) {
-            System.err.println("Usage: aegis-modernization-engine map-ddl <intake.json> <schema.sql> <oracle|postgresql> <store-id> <schema-name> [db-version]");
+            System.err.println("Usage: aegis-modernization-engine map-ddl <intake.json> <schema.sql> <oracle|postgresql|mysql|mariadb|sqlserver|db2> <store-id> <schema-name> [db-version]");
             return 2;
         }
         IntakeService.IntakeRequest request = IntakeService.readRequest(Path.of(args[1]));
@@ -307,9 +307,9 @@ public final class AegisCli {
                 Commands:
                   intake <intake.json> <artifact-store-dir>
                       Validate an intake envelope and register supplied artifacts.
-                  parse-ddl <schema.sql> <oracle|postgresql> [source-name]
+                  parse-ddl <schema.sql> <oracle|postgresql|mysql|mariadb|sqlserver|db2> [source-name]
                       Parse the supported SQL DDL subset and emit JSON.
-                  map-ddl <intake.json> <schema.sql> <oracle|postgresql> <store-id> <schema-name> [db-version]
+                  map-ddl <intake.json> <schema.sql> <oracle|postgresql|mysql|mariadb|sqlserver|db2> <store-id> <schema-name> [db-version]
                       Build a project UPKM and merge the parsed physical database schema.
                   analyze-java <source.java> <intake.json>
                       Extract Java declarations and imports into the project UPKM.
