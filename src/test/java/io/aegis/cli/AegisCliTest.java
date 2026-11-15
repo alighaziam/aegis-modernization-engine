@@ -30,6 +30,15 @@ class AegisCliTest {
         assertEquals(0, AegisCli.run(new String[]{"parse-ddl", sql.toString(), "postgresql"}));
     }
 
+
+    @Test
+    void oracleJournalCommandsValidateTheirArgumentsWithoutOpeningDatabase() {
+        assertEquals(2, AegisCli.run(new String[]{"store-evidence"}));
+        assertEquals(2, AegisCli.run(new String[]{"list-evidence"}));
+        assertEquals(2, AegisCli.run(new String[]{"store-conflict-event"}));
+        assertEquals(2, AegisCli.run(new String[]{"list-conflicts"}));
+    }
+
     @Test
     void rejectsUnknownCommand() {
         assertEquals(2, AegisCli.run(new String[]{"unknown"}));
