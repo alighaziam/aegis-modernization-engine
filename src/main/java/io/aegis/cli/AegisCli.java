@@ -91,7 +91,7 @@ public final class AegisCli {
         return 0;
     }
 
-    private static int runDbCheck(String[] args) {
+    private static int runDbCheck(String[] args) throws Exception {
         if (args.length != 1) {
             System.err.println("Usage: aegis-modernization-engine db-check");
             return 2;
