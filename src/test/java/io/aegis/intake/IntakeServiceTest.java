@@ -54,7 +54,7 @@ class IntakeServiceTest {
                       "artifactId": "schema",
                       "category": "database_metadata",
                       "format": "sql",
-                      "origin": "user",
+                      "origin": "manual",
                       "location": "schema.sql"
                     }]
                   }
