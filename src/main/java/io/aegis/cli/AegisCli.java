@@ -24,6 +24,9 @@ import io.aegis.persistence.OracleArtifactDigest;
 import io.aegis.persistence.oracle.OracleArtifactRepository;
 import io.aegis.persistence.oracle.OracleConnectionConfig;
 import io.aegis.persistence.oracle.OracleProjectRepository;
+import io.aegis.persistence.oracle.OracleKnowledgeJournalRepository;
+import io.aegis.evidence.EvidenceRecord;
+import io.aegis.evidence.ConflictRegistry;
 import io.aegis.persistence.oracle.OracleSchemaVerifier;
 import io.aegis.persistence.oracle.OracleIntakeRepository;
 import com.zaxxer.hikari.HikariDataSource;
@@ -70,6 +73,10 @@ public final class AegisCli {
                 case "store-intake" -> runStoreIntake(args);
                 case "store-artifact" -> runStoreArtifact(args);
                 case "load-model" -> runLoadModel(args);
+                case "store-evidence" -> runStoreEvidence(args);
+                case "list-evidence" -> runListEvidence(args);
+                case "store-conflict-event" -> runStoreConflictEvent(args);
+                case "list-conflicts" -> runListConflicts(args);
                 default -> {
                     System.err.println("Unknown command: " + args[0]);
                     usage();
@@ -156,6 +163,57 @@ public final class AegisCli {
             System.out.println(JSON.writeValueAsString(model.get()));
             return 0;
         }
+    }
+
+    private static int runStoreEvidence(String[] args) throws Exception {
+        if (args.length != 3) {
+            System.err.println("Usage: aegis-modernization-engine store-evidence <project-id> <evidence.json>");
+            return 2;
+        }
+        EvidenceRecord evidence = JSON.readValue(Files.readString(Path.of(args[2]), StandardCharsets.UTF_8), EvidenceRecord.class);
+        try (HikariDataSource dataSource = OracleConnectionConfig.fromEnvironment().createDataSource()) {
+            new OracleKnowledgeJournalRepository(dataSource).append(args[1], evidence);
+        }
+        System.out.println(JSON.writeValueAsString(new JournalWriteOutput(args[1], evidence.evidenceId(), "EVIDENCE", "ORACLE")));
+        return 0;
+    }
+
+    private static int runListEvidence(String[] args) throws Exception {
+        if (args.length != 3) {
+            System.err.println("Usage: aegis-modernization-engine list-evidence <project-id> <analysis-run-id>");
+            return 2;
+        }
+        try (HikariDataSource dataSource = OracleConnectionConfig.fromEnvironment().createDataSource()) {
+            var records = new OracleKnowledgeJournalRepository(dataSource).findByAnalysisRun(args[1], args[2]);
+            System.out.println(JSON.writeValueAsString(records));
+        }
+        return 0;
+    }
+
+    private static int runStoreConflictEvent(String[] args) throws Exception {
+        if (args.length != 3) {
+            System.err.println("Usage: aegis-modernization-engine store-conflict-event <project-id> <event.json>");
+            return 2;
+        }
+        ConflictRegistry.ConflictEvent event = JSON.readValue(
+                Files.readString(Path.of(args[2]), StandardCharsets.UTF_8), ConflictRegistry.ConflictEvent.class);
+        try (HikariDataSource dataSource = OracleConnectionConfig.fromEnvironment().createDataSource()) {
+            new OracleKnowledgeJournalRepository(dataSource).append(args[1], event);
+        }
+        System.out.println(JSON.writeValueAsString(new JournalWriteOutput(args[1], event.eventId(), "CONFLICT_EVENT", "ORACLE")));
+        return 0;
+    }
+
+    private static int runListConflicts(String[] args) throws Exception {
+        if (args.length != 2) {
+            System.err.println("Usage: aegis-modernization-engine list-conflicts <project-id>");
+            return 2;
+        }
+        try (HikariDataSource dataSource = OracleConnectionConfig.fromEnvironment().createDataSource()) {
+            var events = new OracleKnowledgeJournalRepository(dataSource).history(args[1]);
+            System.out.println(JSON.writeValueAsString(events));
+        }
+        return 0;
     }
 
     private static int runIntake(String[] args) throws Exception {
@@ -332,6 +390,7 @@ public final class AegisCli {
     public record DdlMigrationOutput(SqlDdlParser.ParseResult sourceAnalysis,
                                      OraclePostgresDdlPlanner.MigrationPlan migrationPlan) {}
     public record StoredArtifactOutput(String projectId, String artifactId, String sha256, long sizeBytes, String persistenceDatabase) {}
+    public record JournalWriteOutput(String projectId, String recordId, String recordType, String persistenceDatabase) {}
     public record DbCheckOutput(String database, String status, java.util.List<String> presentTables,
                                 java.util.List<String> missingTables) {}
     public record StoredProjectOutput(String projectId, String projectName,
