@@ -1,0 +1,122 @@
+package io.aegis.intake;
+
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.aegis.domain.ProjectKnowledgeModel;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.HexFormat;
+import java.util.List;
+import java.util.Objects;
+
+/** Deterministic, offline intake. It never executes artifacts or calls a model service. */
+public final class IntakeService {
+    private static final long MAX_ARTIFACT_BYTES = 100L * 1024L * 1024L;
+    private final ObjectMapper mapper;
+    private final Path artifactStore;
+
+    public IntakeService(Path artifactStore) {
+        this.artifactStore = Objects.requireNonNull(artifactStore).toAbsolutePath().normalize();
+        this.mapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
+    }
+
+    public IntakeReport ingest(Path intakeFile) throws IOException {
+        Path source = intakeFile.toAbsolutePath().normalize();
+        if (!Files.isRegularFile(source)) throw new IntakeException("Intake file does not exist: " + source);
+        IntakeRequest request = mapper.readValue(source.toFile(), IntakeRequest.class);
+        validate(request);
+        Path base = source.getParent();
+        Files.createDirectories(artifactStore.resolve("objects"));
+        Files.createDirectories(artifactStore.resolve("metadata"));
+
+        List\u003cArtifactResult\u003e results = new ArrayList\u003e();
+        List\u003cString\u003e warnings = new ArrayList\u003e();
+        for (ArtifactDescriptor descriptor : request.intake().artifacts()) {
+            if (descriptor.location() == null || descriptor.location().isBlank()) {
+                results.add(new ArtifactResult(descriptor.artifactId(), "MISSING_LOCATION", null, 0));
+                warnings.add("Artifact has no location: " + descriptor.artifactId());
+                continue;
+            }
+            Path candidate = Path.of(descriptor.location());
+            Path resolved = (candidate.isAbsolute() ? candidate : base.resolve(candidate)).toAbsolutePath().normalize();
+            if (!resolved.startsWith(base)) throw new IntakeException("Artifact path escapes intake directory: " + descriptor.artifactId());
+            if (!Files.isRegularFile(resolved)) {
+                results.add(new ArtifactResult(descriptor.artifactId(), "NOT_PRESENT_YET", null, 0));
+                warnings.add("Artifact referenced but not supplied yet: " + descriptor.artifactId());
+                continue;
+            }
+            long size = Files.size(resolved);
+            if (size > MAX_ARTIFACT_BYTES) throw new IntakeException("Artifact exceeds 100 MiB limit: " + descriptor.artifactId());
+            String digest = sha256(resolved);
+            if (descriptor.sha256() != null && !descriptor.sha256().equalsIgnoreCase(digest)) {
+                throw new IntakeException("SHA-256 mismatch for artifact: " + descriptor.artifactId());
+            }
+            Path stored = artifactStore.resolve("objects").resolve(digest);
+            if (!Files.exists(stored)) Files.copy(resolved, stored, StandardCopyOption.COPY_ATTRIBUTES);
+            results.add(new ArtifactResult(descriptor.artifactId(), "REGISTERED", digest, size));
+        }
+
+        IntakeReport report = new IntakeReport(request.schemaVersion(), request.project().id(),
+                request.project().name(), request.intake().batchId(), request.intake().mode(),
+                results, warnings, results.stream().filter(r -> r.status().equals("REGISTERED")).count());
+        Path reportPath = artifactStore.resolve("metadata").resolve(safeName(request.project().id()) + "-" + safeName(request.intake().batchId()) + ".json");
+        mapper.writerWithDefaultPrettyPrinter().writeValue(reportPath.toFile(), report);
+        return report;
+    }
+
+    private static void validate(IntakeRequest r) {
+        if (r == null || !"1.0".equals(r.schemaVersion())) throw new IntakeException("Unsupported schemaVersion; expected 1.0");
+        if (r.project() == null || blank(r.project().id()) || blank(r.project().name())) throw new IntakeException("project.id and project.name are required");
+        if (r.intake() == null || blank(r.intake().batchId()) || r.intake().artifacts() == null || r.intake().artifacts().isEmpty()) throw new IntakeException("intake.batchId and at least one artifact are required");
+        String mode = r.intake().mode();
+        if (!List.of("single", "pair", "bundle", "incremental", "manual").contains(mode)) throw new IntakeException("Unsupported intake mode: " + mode);
+        if ("single".equals(mode) && r.intake().artifacts().size() != 1) throw new IntakeException("single mode requires exactly one artifact");
+        if ("pair".equals(mode) && r.intake().artifacts().size() != 2) throw new IntakeException("pair mode requires exactly two artifacts");
+        for (ArtifactDescriptor a : r.intake().artifacts()) {
+            if (a == null || blank(a.artifactId()) || blank(a.category()) || blank(a.format()) || blank(a.origin())) throw new IntakeException("Every artifact requires artifactId, category, format and origin");
+        }
+    }
+
+    private static boolean blank(String s) { return s == null || s.isBlank(); }
+    private static String safeName(String s) { return s.replaceAll("[^A-Za-z0-9._-]", "_"); }
+
+    private static String sha256(Path file) throws IOException {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            try (var in = Files.newInputStream(file)) {
+                byte[] buffer = new byte[8192]; int read;
+                while ((read = in.read(buffer)) != -1) digest.update(buffer, 0, read);
+            }
+            return HexFormat.of().formatHex(digest.digest());
+        } catch (NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
+    }
+
+    public record IntakeRequest(String schemaVersion, ProjectInput project, IntakeBatch intake,
+                                TechnologySection technology, Object constraints,
+                                List\u003cObject\u003e qualityAttributes, List\u003cObject\u003e confirmedFacts) {}
+    public record ProjectInput(String id, String name, String description, String businessDomain, List\u003cString\u003e tags) {}
+    public record IntakeBatch(String batchId, String mode, String createdAt, String previousBatchId,
+                              List\u003cArtifactDescriptor\u003e artifacts) {}
+    public record ArtifactDescriptor(String artifactId, String category, String format, String origin,
+                                     String location, String sha256, Long sizeBytes, String mediaType,
+                                     String parserHint, Object metadata) {}
+    public record TechnologySection(TechnologyProfile source, TechnologyProfile target) {}
+    public record TechnologyProfile(List\u003cTechnologyItem\u003e languages, List\u003cTechnologyItem\u003e frameworks,
+                                    List\u003cTechnologyItem\u003e databases, List\u003cTechnologyItem\u003e platforms,
+                                    List\u003cTechnologyItem\u003e buildTools) {}
+    public record TechnologyItem(String name, String version, String role) {}
+    public record ArtifactResult(String artifactId, String status, String sha256, long sizeBytes) {}
+    public record IntakeReport(String schemaVersion, String projectId, String projectName, String batchId,
+                               String mode, List\u003cArtifactResult\u003e artifacts, List\u003cString\u003e warnings,
+                               long registeredCount) {}
+
+    public static final class IntakeException extends RuntimeException {
+        public IntakeException(String message) { super(message); }
+    }
+}
