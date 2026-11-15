@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
 /** Deterministic technology/version discovery from build descriptors and source markers. */
 public final class TechnologyDetector {
     private static final Pattern JAVA_RELEASE = Pattern.compile("(?im)(?:<maven\\.compiler\\.(?:release|source)>|<java\\.version>|sourceCompatibility\\s*=\\s*|JavaVersion\\.VERSION_)(\\d{1,2})");
-    private static final Pattern BOOT_PARENT = Pattern.compile("(?is)<artifactId>spring-boot-starter-parent</artifactId>\\s*</parent>.*?<version>([^<]+)</version>");
+    private static final Pattern BOOT_PARENT = Pattern.compile("(?is)<artifactId>spring-boot-starter-parent</artifactId>\\s*<version>([^<]+)</version>");
     private static final Pattern BOOT_PLUGIN = Pattern.compile("(?im)(?:org\\.springframework\\.boot:spring-boot-gradle-plugin:|springBootVersion\\s*=\\s*['\"])([0-9][^'\"]*)");
     private static final Pattern DEPENDENCY = Pattern.compile("(?im)(?:<artifactId>(spring-[^<]+)</artifactId>\\s*<version>([^<]+)</version>|(spring-[A-Za-z0-9-]+):([^:'\\s]+):([0-9][^'\\s]*))");
 
@@ -19,7 +19,7 @@ public final class TechnologyDetector {
         Map<String, TechnologyFinding> findings = new LinkedHashMap<>();
         List<String> diagnostics = new ArrayList<>();
         files.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
-            String path = entry.getKey().replace('\\\\', '/');
+            String path = entry.getKey().replace('\\', '/');
             String content = entry.getValue() == null ? "" : entry.getValue();
             String lower = path.toLowerCase();
             if (lower.endsWith("pom.xml") || lower.endsWith("build.gradle") || lower.endsWith("build.gradle.kts")) {
