@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aegis.example/schemas/project-intake.schema.json",
+  "title": "Aegis Project Intake",
+  "description": "Versioned, model-independent project intake envelope. Artifact contents are validated by dedicated parsers.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "project", "intake"],
+  "properties": {
+    "schemaVersion": {"type": "string", "const": "1.0"},
+    "project": {
+      "type": "object", "additionalProperties": false, "required": ["id", "name"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"},
+        "name": {"type": "string", "minLength": 1, "maxLength": 200},
+        "description": {"type": "string", "maxLength": 5000},
+        "businessDomain": {"type": "string", "maxLength": 200},
+        "tags": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 64}}
+      }
+    },
+    "intake": {
+      "type": "object", "additionalProperties": false, "required": ["batchId", "mode", "artifacts"],
+      "properties": {
+        "batchId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "mode": {"type": "string", "enum": ["single", "pair", "bundle", "incremental", "manual"]},
+        "createdAt": {"type": "string", "format": "date-time"},
+        "previousBatchId": {"type": "string", "maxLength": 128},
+        "artifacts": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/artifact"}}
+      }
+    },
+    "technology": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "source": {"$ref": "#/$defs/technologyProfile"},
+        "target": {"$ref": "#/$defs/technologyProfile"}
+      }
+    },
+    "constraints": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "maxDowntimeMinutes": {"type": "integer", "minimum": 0},
+        "mustRemainOffline": {"type": "boolean", "default": true},
+        "dataResidency": {"type": "string", "maxLength": 200},
+        "budgetCategory": {"type": "string", "enum": ["unknown", "low", "medium", "high", "not_applicable"]},
+        "migrationApproach": {"type": "string", "enum": ["undecided", "incremental", "strangler", "modular_rewrite", "big_bang"]},
+        "notes": {"type": "array", "items": {"type": "string", "maxLength": 2000}}
+      }
+    },
+    "qualityAttributes": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["attribute", "priority"],
+        "properties": {
+          "attribute": {"type": "string", "enum": ["availability", "performance", "scalability", "security", "maintainability", "interoperability", "portability", "recoverability", "auditability", "dataIntegrity", "other"]},
+          "priority": {"type": "string", "enum": ["critical", "high", "medium", "low"]},
+          "measure": {"type": "string", "maxLength": 500},
+          "target": {"type": "string", "maxLength": 500}
+        }
+      }
+    },
+    "confirmedFacts": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["factId", "subject", "statement", "confirmedBy"],
+        "properties": {
+          "factId": {"type": "string", "maxLength": 128},
+          "subject": {"type": "string", "maxLength": 256},
+          "statement": {"type": "string", "maxLength": 4000},
+          "confirmedBy": {"type": "string", "maxLength": 128},
+          "confirmedAt": {"type": "string", "format": "date-time"}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "technologyProfile": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "languages": {"type": "array", "items": {"$ref": "#/$defs/technologyItem"}},
+        "frameworks": {"type": "array", "items": {"$ref": "#/$defs/technologyItem"}},
+        "databases": {"type": "array", "items": {"$ref": "#/$defs/technologyItem"}},
+        "platforms": {"type": "array", "items": {"$ref": "#/$defs/technologyItem"}},
+        "buildTools": {"type": "array", "items": {"$ref": "#/$defs/technologyItem"}}
+      }
+    },
+    "technologyItem": {
+      "type": "object", "additionalProperties": false, "required": ["name"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1, "maxLength": 128},
+        "version": {"type": "string", "maxLength": 64},
+        "role": {"type": "string", "maxLength": 128}
+      }
+    },
+    "artifact": {
+      "type": "object", "additionalProperties": false, "required": ["artifactId", "category", "format", "origin"],
+      "properties": {
+        "artifactId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "category": {"type": "string", "enum": ["document", "data_model", "database_metadata", "source_code", "build", "configuration", "api_contract", "test", "infrastructure", "log", "manual_input", "other"]},
+        "format": {"type": "string", "minLength": 1, "maxLength": 64},
+        "origin": {"type": "string", "enum": ["upload", "local_path", "git_snapshot", "database_connection", "manual", "generated"]},
+        "location": {"type": "string", "maxLength": 2048, "description": "Local path or user-controlled reference. Must not contain credentials or secrets."},
+        "sha256": {"type": "string", "pattern": "^[a-fA-F0-9]{64}$"},
+        "sizeBytes": {"type": "integer", "minimum": 0},
+        "mediaType": {"type": "string", "maxLength": 128},
+        "parserHint": {"type": "string", "maxLength": 128},
+        "metadata": {"type": "object", "additionalProperties": {"type": ["string", "number", "boolean", "null"]}}
+      }
+    }
+  }
+}
