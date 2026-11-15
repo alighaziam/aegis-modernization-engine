@@ -1,6 +1,7 @@
 package io.aegis.evidence;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -14,7 +15,7 @@ import java.util.UUID;
 /** Conflict resolutions are new events; competing claims and history remain intact. */
 public final class ConflictRegistry {
     private final Path journal;
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     public ConflictRegistry(Path directory) throws IOException {
         Files.createDirectories(directory);
