@@ -102,7 +102,7 @@ public final class AegisCli {
         Path sourceFile = Path.of(args[1]);
         String source = Files.readString(sourceFile, StandardCharsets.UTF_8);
         JavaSourceAnalyzer.AnalysisResult analysis =
-                new JavaSourceAnalyzer().analyze(source, sourceFile.getFileName().toString());
+                new JavaSourceAnalyzer().analyze(source, sourceFile.toString());
         ProjectKnowledgeModel mapped = new JavaSourceToKnowledgeMapper().merge(project, java.util.List.of(analysis));
         DependencyGraphAnalyzer.GraphReport graph = new DependencyGraphAnalyzer().analyze(mapped);
         System.out.println(JSON.writeValueAsString(new JavaAnalysisOutput(mapped, analysis, graph)));
