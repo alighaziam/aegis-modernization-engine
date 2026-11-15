@@ -2,23 +2,25 @@ package io.aegis.transformation;
 
 import io.aegis.parser.sql.DatabaseDialect;
 import io.aegis.parser.sql.SqlDdlParser;
-import java.util.ArrayList;
+
 import java.util.List;
 import java.util.regex.Pattern;
 
 /**
- * Routes DDL migration requests through explicitly tested source/target adapters.
- * Unsupported pairs are reported as such; no fallback or guessed SQL is generated.
+ * Routes supported DDL source/target pairs through conservative, reviewable adapters.
+ * This planner emits SQL only for the common parsed subset; it never executes migrations.
  */
 public final class DatabaseMigrationPlanner {
     private static final Pattern SAFE_IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_$#]*");
     private final OraclePostgresDdlPlanner oraclePostgres = new OraclePostgresDdlPlanner();
+    private final CommonDdlMigrationAdapter commonAdapter = new CommonDdlMigrationAdapter();
 
     public MigrationPlan plan(SqlDdlParser.ParseResult parsed, String targetDialect, String targetSchema) {
         if (parsed == null) throw new IllegalArgumentException("Parsed source DDL is required");
         DatabaseDialect source = DatabaseDialect.from(parsed.vendor());
         DatabaseDialect target = DatabaseDialect.from(targetDialect);
-        String schema = targetSchema == null || targetSchema.isBlank() ? "public" : targetSchema.trim();
+        String schema = targetSchema == null || targetSchema.isBlank() ? defaultSchema(target) : targetSchema.trim();
+
         if (source == DatabaseDialect.UNKNOWN || target == DatabaseDialect.UNKNOWN) {
             return new MigrationPlan(source.name(), target.name(), schema, List.of(),
                     List.of(new Diagnostic("UNKNOWN_DIALECT",
@@ -35,11 +37,15 @@ public final class DatabaseMigrationPlanner {
                     .map(d -> new Diagnostic(d.code(), d.message(), d.status())).toList();
             return new MigrationPlan(source.name(), target.name(), schema, plan.statements(), diagnostics, true);
         }
-        return new MigrationPlan(source.name(), target.name(), schema, List.of(),
-                List.of(new Diagnostic("MIGRATION_ADAPTER_NOT_IMPLEMENTED",
-                        "No tested DDL transformation adapter exists for " + source
-                                + " -> " + target + ". The source can be analyzed, but conversion SQL was not generated.",
-                        "REVIEW_REQUIRED")), true);
+        return commonAdapter.plan(parsed, target, schema);
+    }
+
+    private static String defaultSchema(DatabaseDialect target) {
+        return switch (target) {
+            case ORACLE, DB2 -> "APP";
+            case SQLSERVER -> "dbo";
+            default -> "public";
+        };
     }
 
     public record Diagnostic(String code, String message, String status) {}
