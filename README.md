@@ -35,6 +35,12 @@ The repository now contains an initial executable Java implementation:
 - An offline SQL DDL parser for a deliberately limited Oracle/PostgreSQL subset, plus a DDL-to-UPKM mapper, in `src/main/java/io/aegis/parser/sql`.
 - A JDK compiler-tree Java source analyzer that extracts packages, imports, type declarations and method signatures without compiling or executing uploaded code, in `src/main/java/io/aegis/parser/java`.
 - A deterministic dependency graph analyzer that reports internal strongly connected components (cycles) separately from external imports, in `src/main/java/io/aegis/analysis`.
+- A technology detector for Java release, Spring Boot and supported Spring dependency markers from Maven/Gradle descriptors and Java source.
+- An OpenAPI 3.x YAML/JSON analyzer that extracts endpoint contracts and component schemas without resolving remote `$ref` values.
+- A conservative logical-model and business-rule inference pass that derives candidate entities from physical DDL and validation/guard markers from source text; all inferred facts are marked `INFERRED`.
+- A deterministic target architecture and phased migration planner driven by an explicit target profile.
+- A guarded text transformation engine with expected-occurrence/hash preconditions, SHA-256 backups and rollback conflict checks.
+- A generated-artifact integrity validator that checks expected hashes and rejects paths escaping the project root.
 - Append-only evidence and conflict journals in `src/main/java/io/aegis/evidence`.
 - A command-line entry point for intake, DDL parsing, Java analysis and UPKM mapping in `src/main/java/io/aegis/cli`.
 
@@ -63,7 +69,7 @@ build/install/aegis-modernization-engine/bin/aegis-modernization-engine analyze-
 
 Exit codes: `0` means completed without diagnostics/warnings, `1` means execution or validation error, `2` means invalid command usage, and `3` means processing completed with review diagnostics or intake warnings.
 
-A GitHub Actions workflow runs Java 25 compilation, tests, and distribution assembly on pushes and pull requests to `main`. The `map-ddl` command combines the validated project intake, technology profile, SQL parse result, and physical database model into one JSON output; it does not infer logical business relationships. The `analyze-java` command uses the JDK parser only (`-proc:none`), records declared imports as explicit dependencies, and does not perform semantic resolution or claim that every import is used. The dependency graph only detects cycles among components already identified in the UPKM; it does not infer hidden runtime calls.
+A GitHub Actions workflow runs Java 25 compilation, tests, and distribution assembly on pushes and pull requests to `main`. The `map-ddl` command combines the validated project intake, technology profile, SQL parse result, and physical database model into one JSON output; it does not infer logical business relationships. The `analyze-java` command uses the JDK parser only (`-proc:none`), records declared imports as explicit dependencies, and does not perform semantic resolution or claim that every import is used. The dependency graph only detects cycles among components already identified in the UPKM; it does not infer hidden runtime calls. The `detect-tech`, `analyze-openapi`, `infer-model` and `plan` commands expose the new deterministic discovery and planning capabilities. Technology detection is evidence-based and incomplete when build metadata is absent. OpenAPI external references are not fetched. Logical entities, cardinalities and source-derived business rules are candidates, not verified business truth. The transformation engine applies only explicitly supplied literal replacements; it is not yet a semantic Java refactoring engine. Artifact validation verifies hashes but does not replace compilation, integration, security or performance testing.
 
 ## Repository map
 
