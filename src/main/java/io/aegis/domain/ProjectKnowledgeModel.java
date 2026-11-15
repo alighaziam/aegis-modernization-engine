@@ -94,7 +94,7 @@ public record ProjectKnowledgeModel(
         public LogicalEntity { required(id, "entity.id"); required(name, "entity.name"); attributes = safe(attributes); relationships = safe(relationships); status = status == null ? FactStatus.UNKNOWN : status; }
     }
     public record LogicalAttribute(String name, String businessType, boolean required, String description, FactStatus status) {
-        public LogicalAttribute { required(name, "attribute.name"); status = status == null ? FactStatus.UNKNOWN : status; }
+        public LogicalAttribute { ProjectKnowledgeModel.required(name, "attribute.name"); status = status == null ? FactStatus.UNKNOWN : status; }
     }
     public record LogicalRelationship(String id, String fromEntity, String toEntity, RelationshipKind cardinality,
                                       FactStatus status, List\u003cString\u003e evidenceIds) {

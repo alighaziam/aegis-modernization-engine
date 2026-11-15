@@ -42,7 +42,7 @@ public final class ConflictRegistry {
     }
 
     public synchronized List\u003cConflictEvent\u003e history() throws IOException {
-        List\u003cConflictEvent\u003e events = new ArrayList\u003e();
+        List\u003cConflictEvent\u003e events = new ArrayList\u003c\u003e();
         for (String line : Files.readAllLines(journal, StandardCharsets.UTF_8)) if (!line.isBlank())
             events.add(mapper.readValue(line, ConflictEvent.class));
         return List.copyOf(events);

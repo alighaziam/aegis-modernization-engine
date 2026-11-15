@@ -39,7 +39,7 @@ public final class EvidenceStore {
     }
 
     public synchronized List\u003cEvidenceRecord\u003e readAll() throws IOException {
-        List\u003cEvidenceRecord\u003e records = new ArrayList\u003e();
+        List\u003cEvidenceRecord\u003e records = new ArrayList\u003c\u003e();
         for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
             if (!line.isBlank()) records.add(mapper.readValue(line, EvidenceRecord.class));
         }

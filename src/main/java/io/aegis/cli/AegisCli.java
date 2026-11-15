@@ -5,6 +5,11 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.aegis.domain.ProjectKnowledgeModel;
 import io.aegis.analysis.DependencyGraphAnalyzer;
+import io.aegis.analysis.JavaBehaviorAnalyzer;
+import io.aegis.analysis.LogicalModelInferer;
+import io.aegis.discovery.TechnologyDetector;
+import io.aegis.parser.openapi.OpenApiYamlAnalyzer;
+import io.aegis.planning.ModernizationPlanner;
 import io.aegis.intake.IntakeService;
 import io.aegis.intake.IntakeToKnowledgeModelMapper;
 import io.aegis.parser.sql.SqlDdlParser;
@@ -41,6 +46,11 @@ public final class AegisCli {
                 case "parse-ddl" -> runParseDdl(args);
                 case "map-ddl" -> runMapDdl(args);
                 case "analyze-java" -> runAnalyzeJava(args);
+                case "analyze-behavior" -> runAnalyzeBehavior(args);
+                case "detect-tech" -> runDetectTech(args);
+                case "analyze-openapi" -> runAnalyzeOpenApi(args);
+                case "infer-model" -> runInferModel(args);
+                case "plan" -> runPlan(args);
                 default -> {
                     System.err.println("Unknown command: " + args[0]);
                     usage();
@@ -109,6 +119,80 @@ public final class AegisCli {
         return analysis.diagnostics().isEmpty() ? 0 : 3;
     }
 
+    private static int runAnalyzeBehavior(String[] args) throws Exception {
+        if (args.length != 2) {
+            System.err.println("Usage: aegis-modernization-engine analyze-behavior <source.java>");
+            return 2;
+        }
+        Path source = Path.of(args[1]);
+        JavaBehaviorAnalyzer.BehaviorReport report = new JavaBehaviorAnalyzer().analyze(
+                Files.readString(source, StandardCharsets.UTF_8), source.toString());
+        System.out.println(JSON.writeValueAsString(report));
+        return report.diagnostics().isEmpty() ? 0 : 3;
+    }
+
+    private static int runDetectTech(String[] args) throws Exception {
+        if (args.length < 2) {
+            System.err.println("Usage: aegis-modernization-engine detect-tech <pom.xml|build.gradle|source.java>...");
+            return 2;
+        }
+        java.util.Map<String, String> inputs = new java.util.LinkedHashMap<>();
+        for (int i = 1; i < args.length; i++) {
+            Path path = Path.of(args[i]);
+            inputs.put(path.toString(), Files.readString(path, StandardCharsets.UTF_8));
+        }
+        TechnologyDetector.DetectionReport report = new TechnologyDetector().detect(inputs);
+        System.out.println(JSON.writeValueAsString(report));
+        return report.diagnostics().isEmpty() ? 0 : 3;
+    }
+
+    private static int runAnalyzeOpenApi(String[] args) throws Exception {
+        if (args.length != 3) {
+            System.err.println("Usage: aegis-modernization-engine analyze-openapi <openapi.yaml|json> <intake.json>");
+            return 2;
+        }
+        Path spec = Path.of(args[1]);
+        IntakeService.IntakeRequest request = IntakeService.readRequest(Path.of(args[2]));
+        ProjectKnowledgeModel project = new IntakeToKnowledgeModelMapper().map(request);
+        OpenApiYamlAnalyzer analyzer = new OpenApiYamlAnalyzer();
+        OpenApiYamlAnalyzer.Analysis analysis = analyzer.analyze(
+                Files.readString(spec, StandardCharsets.UTF_8), spec.toString());
+        ProjectKnowledgeModel mapped = analyzer.merge(project, analysis);
+        System.out.println(JSON.writeValueAsString(new OpenApiAnalysisOutput(mapped, analysis)));
+        return analysis.diagnostics().isEmpty() ? 0 : 3;
+    }
+
+    private static int runInferModel(String[] args) throws Exception {
+        if (args.length < 2) {
+            System.err.println("Usage: aegis-modernization-engine infer-model <intake.json> [source.java...]");
+            return 2;
+        }
+        IntakeService.IntakeRequest request = IntakeService.readRequest(Path.of(args[1]));
+        ProjectKnowledgeModel project = new IntakeToKnowledgeModelMapper().map(request);
+        java.util.List<String> sources = new java.util.ArrayList<>();
+        for (int i = 2; i < args.length; i++)
+            sources.add(Files.readString(Path.of(args[i]), StandardCharsets.UTF_8));
+        LogicalModelInferer.InferenceReport report = new LogicalModelInferer().infer(project, sources);
+        System.out.println(JSON.writeValueAsString(report));
+        return 0;
+    }
+
+    private static int runPlan(String[] args) throws Exception {
+        if (args.length != 8) {
+            System.err.println("Usage: aegis-modernization-engine plan <intake.json> <java-version> <framework> <framework-version> <database> <frontend> <deployment>");
+            return 2;
+        }
+        IntakeService.IntakeRequest request = IntakeService.readRequest(Path.of(args[1]));
+        ProjectKnowledgeModel project = new IntakeToKnowledgeModelMapper().map(request);
+        ModernizationPlanner.TargetProfile target = new ModernizationPlanner.TargetProfile(
+                Integer.parseInt(args[2]), args[3], args[4], args[5], args[6], args[7]);
+        ModernizationPlanner.Plan plan = new ModernizationPlanner().create(project, target);
+        System.out.println(JSON.writeValueAsString(plan));
+        return 0;
+    }
+
+    public record OpenApiAnalysisOutput(ProjectKnowledgeModel knowledgeModel, OpenApiYamlAnalyzer.Analysis openApi) {}
+
     private static boolean isHelp(String arg) {
         return "-h".equals(arg) || "--help".equals(arg) || "help".equals(arg);
     }
@@ -129,6 +213,14 @@ public final class AegisCli {
                       Build a project UPKM and merge the parsed physical database schema.
                   analyze-java <source.java> <intake.json>
                       Extract Java declarations and imports into the project UPKM.
+                  detect-tech <pom.xml|build.gradle|source.java>...
+                      Detect supported Java, Spring and library markers and versions.
+                  analyze-openapi <openapi.yaml|json> <intake.json>
+                      Parse OpenAPI endpoints and schemas and merge endpoints into UPKM.
+                  infer-model <intake.json> [source.java...]
+                      Infer logical entities and candidate business rules; review is required.
+                  plan <intake.json> <java-version> <framework> <framework-version> <database> <frontend> <deployment>
+                      Generate an explainable target architecture and migration sequence.
 
                 Exit codes:
                   0  completed without review warnings
