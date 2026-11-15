@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "1.0",
+  "project": {
+    "id": "legacy-orders",
+    "name": "Legacy Order Management",
+    "description": "Example project for staged legacy modernization.",
+    "businessDomain": "Order Management",
+    "tags": ["legacy", "modernization", "java", "oracle"]
+  },
+  "intake": {
+    "batchId": "intake-0001",
+    "mode": "bundle",
+    "createdAt": "2026-11-15T10:00:00Z",
+    "artifacts": [
+      {"artifactId": "artifact-source-001", "category": "source_code", "format": "zip", "origin": "upload", "location": "inputs/legacy-orders-source.zip"},
+      {"artifactId": "artifact-ddl-001", "category": "data_model", "format": "oracle-sql-ddl", "origin": "upload", "location": "inputs/oracle-schema.sql"},
+      {"artifactId": "artifact-openapi-001", "category": "api_contract", "format": "openapi-3.0", "origin": "upload", "location": "inputs/openapi.yaml"}
+    ]
+  },
+  "technology": {
+    "source": {
+      "languages": [{"name": "Java", "version": "8"}],
+      "frameworks": [{"name": "Spring Framework", "version": "legacy"}],
+      "databases": [{"name": "Oracle"}],
+      "platforms": [{"name": "AngularJS"}],
+      "buildTools": [{"name": "Maven"}]
+    },
+    "target": {
+      "languages": [{"name": "Java", "version": "TBD"}],
+      "frameworks": [{"name": "Spring Boot", "version": "TBD"}],
+      "databases": [{"name": "PostgreSQL"}],
+      "platforms": [{"name": "React"}]
+    }
+  },
+  "constraints": {
+    "mustRemainOffline": true,
+    "migrationApproach": "undecided",
+    "notes": ["Target versions must be selected after a compatibility review.", "Do not execute uploaded source code or SQL during discovery."]
+  },
+  "qualityAttributes": [
+    {"attribute": "dataIntegrity", "priority": "critical", "measure": "No unexplained record loss or relationship breakage.", "target": "Reconciliation report for every migrated dataset."},
+    {"attribute": "availability", "priority": "high", "measure": "Migration downtime", "target": "To be confirmed by project owner."}
+  ]
+}
