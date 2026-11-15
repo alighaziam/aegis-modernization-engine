@@ -193,7 +193,7 @@ public final class AegisCli {
         OraclePostgresDdlPlanner.MigrationPlan plan =
                 new OraclePostgresDdlPlanner().plan(parsed, args[3]);
         System.out.println(JSON.writeValueAsString(new DdlMigrationOutput(parsed, plan)));
-        return plan.diagnostics().stream().anyMatch(d -> "ERROR".equals(d.status())) ? 3 : 0;
+        return plan.diagnostics().isEmpty() ? 0 : 3;
     }
 
     private static int runMigrateJavaImports(String[] args) throws Exception {
