@@ -65,7 +65,7 @@ public final class JavaImportMigrator {
         }
 
         List<String> parseErrors = diagnostics.getDiagnostics().stream()
-                .filter(d -> d.getKind() == Diagnostic.Kind.ERROR)
+                .filter(d -> d.getKind() == javax.tools.Diagnostic.Kind.ERROR)
                 .map(d -> "line " + d.getLineNumber() + ": " + d.getMessage(null))
                 .toList();
         if (!parseErrors.isEmpty()) {
