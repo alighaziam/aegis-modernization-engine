@@ -8,6 +8,8 @@ import io.aegis.intake.IntakeService;
 import io.aegis.intake.IntakeToKnowledgeModelMapper;
 import io.aegis.parser.sql.SqlDdlParser;
 import io.aegis.parser.sql.SqlDdlToKnowledgeMapper;
+import io.aegis.parser.java.JavaSourceAnalyzer;
+import io.aegis.parser.java.JavaSourceToKnowledgeMapper;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -37,6 +39,7 @@ public final class AegisCli {
                 case "intake" -> runIntake(args);
                 case "parse-ddl" -> runParseDdl(args);
                 case "map-ddl" -> runMapDdl(args);
+                case "analyze-java" -> runAnalyzeJava(args);
                 default -> {
                     System.err.println("Unknown command: " + args[0]);
                     usage();
@@ -88,11 +91,28 @@ public final class AegisCli {
         return parsed.diagnostics().isEmpty() ? 0 : 3;
     }
 
+    private static int runAnalyzeJava(String[] args) throws Exception {
+        if (args.length != 3) {
+            System.err.println("Usage: aegis-modernization-engine analyze-java <source.java> <intake.json>");
+            return 2;
+        }
+        IntakeService.IntakeRequest request = IntakeService.readRequest(Path.of(args[2]));
+        ProjectKnowledgeModel project = new IntakeToKnowledgeModelMapper().map(request);
+        Path sourceFile = Path.of(args[1]);
+        String source = Files.readString(sourceFile, StandardCharsets.UTF_8);
+        JavaSourceAnalyzer.AnalysisResult analysis =
+                new JavaSourceAnalyzer().analyze(source, sourceFile.getFileName().toString());
+        ProjectKnowledgeModel mapped = new JavaSourceToKnowledgeMapper().merge(project, java.util.List.of(analysis));
+        System.out.println(JSON.writeValueAsString(new JavaAnalysisOutput(mapped, analysis)));
+        return analysis.diagnostics().isEmpty() ? 0 : 3;
+    }
+
     private static boolean isHelp(String arg) {
         return "-h".equals(arg) || "--help".equals(arg) || "help".equals(arg);
     }
 
     public record DdlAnalysisOutput(ProjectKnowledgeModel knowledgeModel, SqlDdlParser.ParseResult ddl) {}
+    public record JavaAnalysisOutput(ProjectKnowledgeModel knowledgeModel, JavaSourceAnalyzer.AnalysisResult javaAnalysis) {}
 
     private static void usage() {
         System.out.println("""
