@@ -32,9 +32,10 @@ The repository now contains an initial executable Java implementation:
 
 - Canonical UPKM domain records in `src/main/java/io/aegis/domain`.
 - Strict JSON intake validation and content-addressed artifact registration in `src/main/java/io/aegis/intake`.
-- An offline SQL DDL parser for a deliberately limited Oracle/PostgreSQL subset in `src/main/java/io/aegis/parser/sql`.
+- An offline SQL DDL parser for a deliberately limited Oracle/PostgreSQL subset, plus a DDL-to-UPKM mapper, in `src/main/java/io/aegis/parser/sql`.
+- A JDK compiler-tree Java source analyzer that extracts packages, imports, type declarations and method signatures without compiling or executing uploaded code, in `src/main/java/io/aegis/parser/java`.
 - Append-only evidence and conflict journals in `src/main/java/io/aegis/evidence`.
-- A command-line entry point for intake, DDL parsing and UPKM mapping in `src/main/java/io/aegis/cli`.
+- A command-line entry point for intake, DDL parsing, Java analysis and UPKM mapping in `src/main/java/io/aegis/cli`.
 
 Unsupported SQL syntax is surfaced as a diagnostic requiring review. The parser is not a complete Oracle or PostgreSQL grammar and must not be treated as one.
 
@@ -54,11 +55,14 @@ build/install/aegis-modernization-engine/bin/aegis-modernization-engine parse-dd
 
 # Merge parsed DDL into the project's canonical physical data model (UPKM)
 build/install/aegis-modernization-engine/bin/aegis-modernization-engine map-ddl ./project-intake.json ./schema.sql postgresql orders-db public 16
+
+# Extract Java declarations/imports and merge them into the project UPKM
+build/install/aegis-modernization-engine/bin/aegis-modernization-engine analyze-java ./src/main/java/com/acme/OrderService.java ./project-intake.json
 ```
 
 Exit codes: `0` means completed without diagnostics/warnings, `1` means execution or validation error, `2` means invalid command usage, and `3` means processing completed with review diagnostics or intake warnings.
 
-A GitHub Actions workflow runs Java 25 compilation, tests, and distribution assembly on pushes and pull requests to `main`. The `map-ddl` command combines the validated project intake, technology profile, SQL parse result, and physical database model into one JSON output; it does not infer logical business relationships.
+A GitHub Actions workflow runs Java 25 compilation, tests, and distribution assembly on pushes and pull requests to `main`. The `map-ddl` command combines the validated project intake, technology profile, SQL parse result, and physical database model into one JSON output; it does not infer logical business relationships. The `analyze-java` command uses the JDK parser only (`-proc:none`), records declared imports as explicit dependencies, and does not perform semantic resolution or claim that every import is used.
 
 ## Repository map
 
