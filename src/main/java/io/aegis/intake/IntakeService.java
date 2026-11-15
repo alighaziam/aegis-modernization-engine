@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
@@ -62,7 +64,15 @@ public final class IntakeService {
                 throw new IntakeException("SHA-256 mismatch for artifact: " + descriptor.artifactId());
             }
             Path stored = artifactStore.resolve("objects").resolve(digest);
-            if (!Files.exists(stored)) Files.copy(realArtifact, stored, StandardCopyOption.COPY_ATTRIBUTES);
+            if (!Files.exists(stored, LinkOption.NOFOLLOW_LINKS)) {
+                try {
+                    Files.copy(realArtifact, stored, StandardCopyOption.COPY_ATTRIBUTES);
+                } catch (FileAlreadyExistsException concurrentWrite) {
+                    // Another intake may have stored the same content concurrently.
+                }
+            }
+            if (!Files.isRegularFile(stored, LinkOption.NOFOLLOW_LINKS) || !digest.equals(sha256(stored)))
+                throw new IntakeException("Content-addressed object is missing, linked or corrupt: " + digest);
             results.add(new ArtifactResult(descriptor.artifactId(), "REGISTERED", digest, size));
         }
 
@@ -125,7 +135,16 @@ public final class IntakeService {
     }
 
     private static boolean blank(String s) { return s == null || s.isBlank(); }
-    private static String safeName(String s) { return s.replaceAll("[^A-Za-z0-9._-]", "_"); }
+    private static String safeName(String value) {
+        String safe = value.replaceAll("[^A-Za-z0-9._-]", "_");
+        if (safe.equals(value)) return safe;
+        try {
+            byte[] hash = MessageDigest.getInstance("SHA-256").digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return safe + "-" + HexFormat.of().formatHex(hash, 0, 6);
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException(impossible);
+        }
+    }
 
     private static String sha256(Path file) throws IOException {
         try {
