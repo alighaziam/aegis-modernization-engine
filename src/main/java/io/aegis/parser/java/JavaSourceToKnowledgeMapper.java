@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Locale;
 
 /** Maps explicit Java declarations and import statements into the canonical project model. */
 public final class JavaSourceToKnowledgeMapper {
@@ -29,7 +30,7 @@ public final class JavaSourceToKnowledgeMapper {
                 for (JavaSourceAnalyzer.TypeDeclaration type : file.types()) {
                     components.putIfAbsent(type.qualifiedName(),
                             new ProjectKnowledgeModel.ApplicationComponent(type.qualifiedName(),
-                                    type.qualifiedName(), "JAVA_" + type.kind().toUpperCase(),
+                                    type.qualifiedName(), "JAVA_" + type.kind().toUpperCase(Locale.ROOT),
                                     file.sourceName() + ":" + type.line(),
                                     ProjectKnowledgeModel.FactStatus.OBSERVED));
 
