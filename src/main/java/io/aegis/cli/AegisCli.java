@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.aegis.domain.ProjectKnowledgeModel;
+import io.aegis.analysis.DependencyGraphAnalyzer;
 import io.aegis.intake.IntakeService;
 import io.aegis.intake.IntakeToKnowledgeModelMapper;
 import io.aegis.parser.sql.SqlDdlParser;
@@ -103,7 +104,8 @@ public final class AegisCli {
         JavaSourceAnalyzer.AnalysisResult analysis =
                 new JavaSourceAnalyzer().analyze(source, sourceFile.getFileName().toString());
         ProjectKnowledgeModel mapped = new JavaSourceToKnowledgeMapper().merge(project, java.util.List.of(analysis));
-        System.out.println(JSON.writeValueAsString(new JavaAnalysisOutput(mapped, analysis)));
+        DependencyGraphAnalyzer.GraphReport graph = new DependencyGraphAnalyzer().analyze(mapped);
+        System.out.println(JSON.writeValueAsString(new JavaAnalysisOutput(mapped, analysis, graph)));
         return analysis.diagnostics().isEmpty() ? 0 : 3;
     }
 
@@ -112,7 +114,7 @@ public final class AegisCli {
     }
 
     public record DdlAnalysisOutput(ProjectKnowledgeModel knowledgeModel, SqlDdlParser.ParseResult ddl) {}
-    public record JavaAnalysisOutput(ProjectKnowledgeModel knowledgeModel, JavaSourceAnalyzer.AnalysisResult javaAnalysis) {}
+    public record JavaAnalysisOutput(ProjectKnowledgeModel knowledgeModel, JavaSourceAnalyzer.AnalysisResult javaAnalysis, DependencyGraphAnalyzer.GraphReport dependencyGraph) {}
 
     private static void usage() {
         System.out.println("""
