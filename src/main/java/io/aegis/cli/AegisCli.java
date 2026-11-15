@@ -13,6 +13,7 @@ import io.aegis.planning.ModernizationPlanner;
 import io.aegis.intake.IntakeService;
 import io.aegis.intake.IntakeToKnowledgeModelMapper;
 import io.aegis.parser.sql.SqlDdlParser;
+import io.aegis.parser.sql.DatabaseDialectRegistry;
 import io.aegis.parser.sql.SqlDdlToKnowledgeMapper;
 import io.aegis.parser.java.JavaSourceAnalyzer;
 import io.aegis.parser.java.JavaSourceToKnowledgeMapper;
@@ -50,6 +51,7 @@ public final class AegisCli {
             return switch (args[0]) {
                 case "intake" -> runIntake(args);
                 case "parse-ddl" -> runParseDdl(args);
+                case "list-db-dialects" -> runListDbDialects(args);
                 case "map-ddl" -> runMapDdl(args);
                 case "analyze-java" -> runAnalyzeJava(args);
                 case "analyze-behavior" -> runAnalyzeBehavior(args);
@@ -72,6 +74,15 @@ public final class AegisCli {
             System.err.println("Aegis error: " + e.getMessage());
             return 1;
         }
+    }
+
+    private static int runListDbDialects(String[] args) throws Exception {
+        if (args.length != 1) {
+            System.err.println("Usage: aegis-modernization-engine list-db-dialects");
+            return 2;
+        }
+        System.out.println(JSON.writeValueAsString(new DatabaseDialectRegistry().all()));
+        return 0;
     }
 
     private static int runDbCheck(String[] args) {
@@ -129,7 +140,7 @@ public final class AegisCli {
 
     private static int runParseDdl(String[] args) throws Exception {
         if (args.length < 3 || args.length > 4) {
-            System.err.println("Usage: aegis-modernization-engine parse-ddl <schema.sql> <oracle|postgresql> [source-name]");
+            System.err.println("Usage: aegis-modernization-engine parse-ddl <schema.sql> <oracle|postgresql|mysql|mariadb|sqlserver|db2> [source-name]");
             return 2;
         }
         Path input = Path.of(args[1]);
@@ -142,7 +153,7 @@ public final class AegisCli {
 
     private static int runMapDdl(String[] args) throws Exception {
         if (args.length < 6 || args.length > 7) {
-            System.err.println("Usage: aegis-modernization-engine map-ddl <intake.json> <schema.sql> <oracle|postgresql> <store-id> <schema-name> [db-version]");
+            System.err.println("Usage: aegis-modernization-engine map-ddl <intake.json> <schema.sql> <oracle|postgresql|mysql|mariadb|sqlserver|db2> <store-id> <schema-name> [db-version]");
             return 2;
         }
         IntakeService.IntakeRequest request = IntakeService.readRequest(Path.of(args[1]));
@@ -305,11 +316,13 @@ public final class AegisCli {
                 Aegis Modernization Engine (offline, deterministic)
 
                 Commands:
+                  list-db-dialects
+                      List recognized database dialects and their implemented capabilities.
                   intake <intake.json> <artifact-store-dir>
                       Validate an intake envelope and register supplied artifacts.
-                  parse-ddl <schema.sql> <oracle|postgresql> [source-name]
+                  parse-ddl <schema.sql> <oracle|postgresql|mysql|mariadb|sqlserver|db2> [source-name]
                       Parse the supported SQL DDL subset and emit JSON.
-                  map-ddl <intake.json> <schema.sql> <oracle|postgresql> <store-id> <schema-name> [db-version]
+                  map-ddl <intake.json> <schema.sql> <oracle|postgresql|mysql|mariadb|sqlserver|db2> <store-id> <schema-name> [db-version]
                       Build a project UPKM and merge the parsed physical database schema.
                   analyze-java <source.java> <intake.json>
                       Extract Java declarations and imports into the project UPKM.
