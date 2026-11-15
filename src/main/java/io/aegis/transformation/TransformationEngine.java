@@ -17,6 +17,7 @@ public final class TransformationEngine {
         Files.createDirectories(rollbackRoot);
         Path backups = rollbackRoot.toAbsolutePath().normalize();
         List<AppliedChange> applied = new ArrayList<>();
+        try {
         for (TextReplacement change : changes) {
             Path target = root.resolve(change.relativePath()).normalize();
             if (!target.startsWith(root) || !Files.isRegularFile(target))
@@ -43,6 +44,18 @@ public final class TransformationEngine {
             } finally { Files.deleteIfExists(temp); }
             applied.add(new AppliedChange(change.relativePath(), beforeHash, sha256(transformed.getBytes(StandardCharsets.UTF_8)),
                     backup.toString(), occurrences));
+        }
+        } catch (IOException | RuntimeException failure) {
+            for (int i = applied.size() - 1; i >= 0; i--) {
+                AppliedChange change = applied.get(i);
+                try {
+                    Path target = root.resolve(change.relativePath()).normalize();
+                    Path backup = Path.of(change.backupPath());
+                    if (target.startsWith(root) && Files.isRegularFile(backup))
+                        Files.copy(backup, target, StandardCopyOption.REPLACE_EXISTING);
+                } catch (Exception rollbackFailure) { failure.addSuppressed(rollbackFailure); }
+            }
+            throw failure;
         }
         return new TransformationResult(applied, true);
     }
