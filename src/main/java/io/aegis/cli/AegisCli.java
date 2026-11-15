@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.aegis.domain.ProjectKnowledgeModel;
 import io.aegis.analysis.DependencyGraphAnalyzer;
+import io.aegis.analysis.JavaBehaviorAnalyzer;
 import io.aegis.analysis.LogicalModelInferer;
 import io.aegis.discovery.TechnologyDetector;
 import io.aegis.parser.openapi.OpenApiYamlAnalyzer;
@@ -45,6 +46,7 @@ public final class AegisCli {
                 case "parse-ddl" -> runParseDdl(args);
                 case "map-ddl" -> runMapDdl(args);
                 case "analyze-java" -> runAnalyzeJava(args);
+                case "analyze-behavior" -> runAnalyzeBehavior(args);
                 case "detect-tech" -> runDetectTech(args);
                 case "analyze-openapi" -> runAnalyzeOpenApi(args);
                 case "infer-model" -> runInferModel(args);
@@ -115,6 +117,18 @@ public final class AegisCli {
         DependencyGraphAnalyzer.GraphReport graph = new DependencyGraphAnalyzer().analyze(mapped);
         System.out.println(JSON.writeValueAsString(new JavaAnalysisOutput(mapped, analysis, graph)));
         return analysis.diagnostics().isEmpty() ? 0 : 3;
+    }
+
+    private static int runAnalyzeBehavior(String[] args) throws Exception {
+        if (args.length != 2) {
+            System.err.println("Usage: aegis-modernization-engine analyze-behavior <source.java>");
+            return 2;
+        }
+        Path source = Path.of(args[1]);
+        JavaBehaviorAnalyzer.BehaviorReport report = new JavaBehaviorAnalyzer().analyze(
+                Files.readString(source, StandardCharsets.UTF_8), source.toString());
+        System.out.println(JSON.writeValueAsString(report));
+        return report.diagnostics().isEmpty() ? 0 : 3;
     }
 
     private static int runDetectTech(String[] args) throws Exception {
