@@ -34,6 +34,16 @@ class SqlDdlParserTest {
     }
 
     @Test
+    void recognizesCommonDdlAcrossRegisteredDatabaseDialects() {
+        for (String dialect : new String[]{"oracle", "postgresql", "mysql", "mariadb", "sqlserver", "db2"}) {
+            SqlDdlParser.ParseResult result = parser.parse(
+                    "CREATE TABLE sample (id BIGINT PRIMARY KEY);", "schema.sql", dialect);
+            assertNotEquals("UNKNOWN", result.vendor(), dialect);
+            assertEquals(1, result.tables().size(), dialect);
+        }
+    }
+
+    @Test
     void reportsUnsupportedStatementsInsteadOfGuessing() {
         SqlDdlParser.ParseResult result = parser.parse(
                 "CREATE SEQUENCE customer_seq;", "schema.sql", "oracle");

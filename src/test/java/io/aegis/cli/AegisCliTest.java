@@ -18,6 +18,11 @@ class AegisCliTest {
     }
 
     @Test
+    void dialectListingCommandReturnsSuccess() {
+        assertEquals(0, AegisCli.run(new String[]{"list-db-dialects"}));
+    }
+
+    @Test
     void parseDdlCommandCompletesSuccessfully() throws Exception {
         Path sql = tempDir.resolve("schema.sql");
         Files.writeString(sql, "CREATE TABLE sample (id BIGINT PRIMARY KEY);");
