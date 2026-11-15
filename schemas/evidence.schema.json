@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aegis.example/schemas/evidence.schema.json",
+  "title": "Aegis Evidence Record",
+  "description": "Provenance record for an observed, user-confirmed, or inferred fact in the Unified Project Knowledge Model.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["evidenceId", "subjectRef", "kind", "source", "method", "confidence", "reviewStatus"],
+  "properties": {
+    "evidenceId": {"type": "string", "minLength": 1, "maxLength": 128},
+    "subjectRef": {"type": "string", "minLength": 1, "maxLength": 512},
+    "kind": {"type": "string", "enum": ["direct", "user_confirmed", "inferred"]},
+    "source": {
+      "type": "object", "additionalProperties": false, "required": ["sourceType"],
+      "properties": {
+        "sourceType": {"type": "string", "enum": ["artifact", "manual_input", "database_catalog", "analysis_rule"]},
+        "artifactId": {"type": "string", "maxLength": 128},
+        "displayName": {"type": "string", "maxLength": 512},
+        "locator": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "path": {"type": "string", "maxLength": 2048},
+            "lineStart": {"type": "integer", "minimum": 1},
+            "lineEnd": {"type": "integer", "minimum": 1},
+            "columnStart": {"type": "integer", "minimum": 1},
+            "columnEnd": {"type": "integer", "minimum": 1},
+            "jsonPointer": {"type": "string", "maxLength": 1024},
+            "databaseObject": {"type": "string", "maxLength": 512},
+            "page": {"type": "integer", "minimum": 1},
+            "section": {"type": "string", "maxLength": 512}
+          }
+        }
+      }
+    },
+    "method": {
+      "type": "object", "additionalProperties": false, "required": ["extractorId", "extractorVersion"],
+      "properties": {
+        "extractorId": {"type": "string", "maxLength": 128},
+        "extractorVersion": {"type": "string", "maxLength": 64},
+        "ruleId": {"type": "string", "maxLength": 128},
+        "ruleVersion": {"type": "string", "maxLength": 64},
+        "description": {"type": "string", "maxLength": 1000}
+      }
+    },
+    "confidence": {
+      "type": "object", "additionalProperties": false, "required": ["level", "rationale"],
+      "properties": {
+        "level": {"type": "string", "enum": ["high", "medium", "low", "not_applicable"]},
+        "rationale": {"type": "string", "minLength": 1, "maxLength": 2000}
+      }
+    },
+    "reviewStatus": {"type": "string", "enum": ["not_required", "pending", "confirmed", "rejected", "superseded"]},
+    "analysisRunId": {"type": "string", "maxLength": 128},
+    "createdAt": {"type": "string", "format": "date-time"},
+    "supersedesEvidenceIds": {"type": "array", "uniqueItems": true, "items": {"type": "string", "maxLength": 128}},
+    "notes": {"type": "string", "maxLength": 4000}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"kind": {"const": "user_confirmed"}}, "required": ["kind"]},
+      "then": {"properties": {"reviewStatus": {"enum": ["confirmed", "superseded"]}}}
+    }
+  ]
+}
