@@ -29,4 +29,30 @@ class AegisCliTest {
     void rejectsUnknownCommand() {
         assertEquals(2, AegisCli.run(new String[]{"unknown"}));
     }
+    @Test
+    void mapDdlCommandBuildsProjectKnowledgeModel() throws Exception {
+        Path intake = tempDir.resolve("project.json");
+        Files.writeString(intake, """
+                {
+                  "schemaVersion": "1.0",
+                  "project": {"id": "demo", "name": "Demo"},
+                  "intake": {
+                    "batchId": "batch-1",
+                    "mode": "single",
+                    "artifacts": [{
+                      "artifactId": "ddl",
+                      "category": "database_metadata",
+                      "format": "sql",
+                      "origin": "manual"
+                    }]
+                  }
+                }
+                """);
+        Path sql = tempDir.resolve("schema.sql");
+        Files.writeString(sql, "CREATE TABLE sample (id BIGINT PRIMARY KEY);");
+
+        assertEquals(0, AegisCli.run(new String[]{
+                "map-ddl", intake.toString(), sql.toString(), "postgresql", "main-db", "public", "16"}));
+    }
+
 }
