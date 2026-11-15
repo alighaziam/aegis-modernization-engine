@@ -23,7 +23,12 @@ public final class ValidationEngine {
                 findings.add(new ValidationFinding("MISSING_ARTIFACT", artifact.relativePath(), "Expected output file is missing.", "ERROR"));
                 continue;
             }
-            String actual = sha256(Files.readAllBytes(path));
+            Path actualPath = path.toRealPath();
+            if (!actualPath.startsWith(realRoot)) {
+                findings.add(new ValidationFinding("SYMLINK_ESCAPE", artifact.relativePath(), "Artifact resolves outside project root.", "ERROR"));
+                continue;
+            }
+            String actual = sha256(Files.readAllBytes(actualPath));
             if (!actual.equalsIgnoreCase(artifact.sha256()))
                 findings.add(new ValidationFinding("HASH_MISMATCH", artifact.relativePath(), "Generated artifact differs from its manifest.", "ERROR"));
             else findings.add(new ValidationFinding("ARTIFACT_VALID", artifact.relativePath(), "SHA-256 matches manifest.", "INFO"));
