@@ -47,4 +47,22 @@ class JavaSourceAnalyzerTest {
 
         assertTrue(result.diagnostics().stream().anyMatch(d -> "ERROR".equals(d.kind())));
     }
+    @Test
+    void doesNotAttributeAnonymousClassMethodsToEnclosingType() throws Exception {
+        JavaSourceAnalyzer.AnalysisResult result = new JavaSourceAnalyzer().analyze("""
+                package com.acme;
+                class Holder {
+                    Object value = new Runnable() {
+                        public void run() {}
+                    };
+                    void realMethod() {}
+                }
+                """, "Holder.java");
+
+        JavaSourceAnalyzer.TypeDeclaration holder = result.files().get(0).types().stream()
+                .filter(type -> type.name().equals("Holder")).findFirst().orElseThrow();
+        assertTrue(holder.methods().stream().anyMatch(method -> method.name().equals("realMethod")));
+        assertFalse(holder.methods().stream().anyMatch(method -> method.name().equals("run")));
+    }
+
 }
