@@ -1,6 +1,5 @@
 package io.aegis.parser.sql;
 
-import io.aegis.domain.ProjectKnowledgeModel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -9,11 +8,11 @@ import java.util.regex.Pattern;
 
 /** Static, non-executing parser for a documented DDL subset. Unknown syntax is reported, not guessed. */
 public final class SqlDdlParser {
-    private static final Pattern CREATE_TABLE = Pattern.compile("(?is)^\\\\s*CREATE\\\\s+TABLE\\\\s+(?:IF\\\\s+NOT\\\\s+EXISTS\\\\s+)?([\\\\w.$#\\\\\" ]+)\\\\s*\\\\(");
-    private static final Pattern CREATE_INDEX = Pattern.compile("(?is)^\\\\s*CREATE\\\\s+(UNIQUE\\\\s+)?INDEX\\\\s+([\\\\w.$#\\\\\"]+)\\\\s+ON\\\\s+([\\\\w.$#\\\\\"]+)\\\\s*\\\\((.*?)\\\\)");
-    private static final Pattern ALTER_TABLE = Pattern.compile("(?is)^\\\\s*ALTER\\\\s+TABLE\\\\s+([\\\\w.$#\\\\\"]+)\\\\s+ADD\\\\s+(?:CONSTRAINT\\\\s+([\\\\w.$#\\\\\"]+)\\\\s+)?(.*)$");
-    private static final Pattern IDENTIFIER = Pattern.compile("^[\\\\\"]?([A-Za-z0-9_$#]+)[\\\\\"]?");
-    private static final Pattern REFERENCES = Pattern.compile("(?is)REFERENCES\\\\s+([\\\\w.$#\\\\\"]+)\\\\s*\\\\((.*?)\\\\)");
+    private static final Pattern CREATE_TABLE = Pattern.compile("(?is)^\\s*CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?([\\w.$#\\\" ]+)\\s*\\(");
+    private static final Pattern CREATE_INDEX = Pattern.compile("(?is)^\\s*CREATE\\s+(UNIQUE\\s+)?INDEX\\s+([\\w.$#\\\"]+)\\s+ON\\s+([\\w.$#\\\"]+)\\s*\\((.*?)\\)");
+    private static final Pattern ALTER_TABLE = Pattern.compile("(?is)^\\s*ALTER\\s+TABLE\\s+([\\w.$#\\\"]+)\\s+ADD\\s+(?:CONSTRAINT\\s+([\\w.$#\\\"]+)\\s+)?(.*)$");
+    private static final Pattern IDENTIFIER = Pattern.compile("^[\\\"]?([A-Za-z0-9_$#]+)[\\\"]?");
+    private static final Pattern REFERENCES = Pattern.compile("(?is)REFERENCES\\s+([\\w.$#\\\"]+)\\s*\\((.*?)\\)");
 
     public ParseResult parse(String sql, String sourceName, String dialect) {
         if (sql == null) throw new IllegalArgumentException("SQL input is required");
@@ -56,7 +55,7 @@ public final class SqlDdlParser {
                 Constraint constraint = parseConstraint(constraintName, definition, sourceName, statement.line(), diagnostics);
                 if (constraint != null) {
                     List\u003cConstraint\u003e changed = new ArrayList\u003e(table.constraints()); changed.add(constraint);
-                    replaceTable(tables, table, new Table(table.name(), table.columns(), changed, table.locator()));
+                    replaceTable(tables, table, new Table(table.name(), table.columns(), changed, table.indexes(), table.locator()));
                     evidence.add(new EvidenceDraft("constraint:" + tableName + "." + constraint.name(), sourceName, statement.line(), "ALTER TABLE ADD", "direct", "high"));
                 }
             } else {
@@ -96,7 +95,7 @@ public final class SqlDdlParser {
                 }
             }
         }
-        return new Table(name, columns, constraints, locator(source, line));
+        return new Table(name, columns, constraints, List.of(), locator(source, line));
     }
 
     private Column parseColumn(String text, String source, int line, List\u003cDiagnostic\u003e diagnostics) {
@@ -185,7 +184,7 @@ public final class SqlDdlParser {
     public record ParseResult(String vendor, List\u003cTable\u003e tables, List\u003cIndex\u003e indexes,
                               List\u003cDiagnostic\u003e diagnostics, List\u003cEvidenceDraft\u003e evidence,
                               int statementCount) {}
-    public record Table(String name, List\u003cColumn\u003e columns, List\u003cConstraint\u003e constraints, String locator) {}
+    public record Table(String name, List\u003cColumn\u003e columns, List\u003cConstraint\u003e constraints, List\u003cIndex\u003e indexes, String locator) {}
     public record Column(String name, String dataType, Integer length, Integer scale, boolean nullable, String defaultExpression, String locator) {}
     public record Constraint(String name, String type, List\u003cString\u003e columns, String referencedTable,
                              List\u003cString\u003e referencedColumns, String locator) {}
