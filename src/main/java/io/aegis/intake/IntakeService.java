@@ -2,7 +2,6 @@ package io.aegis.intake;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.aegis.domain.ProjectKnowledgeModel;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -32,6 +31,7 @@ public final class IntakeService {
         IntakeRequest request = mapper.readValue(source.toFile(), IntakeRequest.class);
         validate(request);
         Path base = source.getParent();
+        Path baseReal = base.toRealPath();
         Files.createDirectories(artifactStore.resolve("objects"));
         Files.createDirectories(artifactStore.resolve("metadata"));
 
@@ -51,14 +51,16 @@ public final class IntakeService {
                 warnings.add("Artifact referenced but not supplied yet: " + descriptor.artifactId());
                 continue;
             }
-            long size = Files.size(resolved);
+            Path realArtifact = resolved.toRealPath();
+            if (!realArtifact.startsWith(baseReal)) throw new IntakeException("Artifact symlink escapes intake directory: " + descriptor.artifactId());
+            long size = Files.size(realArtifact);
             if (size > MAX_ARTIFACT_BYTES) throw new IntakeException("Artifact exceeds 100 MiB limit: " + descriptor.artifactId());
-            String digest = sha256(resolved);
+            String digest = sha256(realArtifact);
             if (descriptor.sha256() != null && !descriptor.sha256().equalsIgnoreCase(digest)) {
                 throw new IntakeException("SHA-256 mismatch for artifact: " + descriptor.artifactId());
             }
             Path stored = artifactStore.resolve("objects").resolve(digest);
-            if (!Files.exists(stored)) Files.copy(resolved, stored, StandardCopyOption.COPY_ATTRIBUTES);
+            if (!Files.exists(stored)) Files.copy(realArtifact, stored, StandardCopyOption.COPY_ATTRIBUTES);
             results.add(new ArtifactResult(descriptor.artifactId(), "REGISTERED", digest, size));
         }
 
