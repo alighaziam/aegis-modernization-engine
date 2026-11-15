@@ -34,6 +34,7 @@ The repository now contains an initial executable Java implementation:
 - Strict JSON intake validation and content-addressed artifact registration in `src/main/java/io/aegis/intake`.
 - An offline SQL DDL parser for a deliberately limited Oracle/PostgreSQL subset, plus a DDL-to-UPKM mapper, in `src/main/java/io/aegis/parser/sql`.
 - A JDK compiler-tree Java source analyzer that extracts packages, imports, type declarations and method signatures without compiling or executing uploaded code, in `src/main/java/io/aegis/parser/java`.
+- A deterministic dependency graph analyzer that reports internal strongly connected components (cycles) separately from external imports, in `src/main/java/io/aegis/analysis`.
 - Append-only evidence and conflict journals in `src/main/java/io/aegis/evidence`.
 - A command-line entry point for intake, DDL parsing, Java analysis and UPKM mapping in `src/main/java/io/aegis/cli`.
 
@@ -62,7 +63,7 @@ build/install/aegis-modernization-engine/bin/aegis-modernization-engine analyze-
 
 Exit codes: `0` means completed without diagnostics/warnings, `1` means execution or validation error, `2` means invalid command usage, and `3` means processing completed with review diagnostics or intake warnings.
 
-A GitHub Actions workflow runs Java 25 compilation, tests, and distribution assembly on pushes and pull requests to `main`. The `map-ddl` command combines the validated project intake, technology profile, SQL parse result, and physical database model into one JSON output; it does not infer logical business relationships. The `analyze-java` command uses the JDK parser only (`-proc:none`), records declared imports as explicit dependencies, and does not perform semantic resolution or claim that every import is used.
+A GitHub Actions workflow runs Java 25 compilation, tests, and distribution assembly on pushes and pull requests to `main`. The `map-ddl` command combines the validated project intake, technology profile, SQL parse result, and physical database model into one JSON output; it does not infer logical business relationships. The `analyze-java` command uses the JDK parser only (`-proc:none`), records declared imports as explicit dependencies, and does not perform semantic resolution or claim that every import is used. The dependency graph only detects cycles among components already identified in the UPKM; it does not infer hidden runtime calls.
 
 ## Repository map
 
