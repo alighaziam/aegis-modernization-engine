@@ -87,4 +87,18 @@ class AegisCliTest {
                 "analyze-java", java.toString(), intake.toString()}));
     }
 
+    @Test
+    void ddlMigrationCommandReturnsReviewExitCode() throws Exception {
+        Path ddl = tempDir.resolve("oracle.sql");
+        Files.writeString(ddl, "CREATE TABLE CUSTOMER (ID NUMBER(9) NOT NULL);");
+        java.io.PrintStream original = System.out;
+        try {
+            System.setOut(new java.io.PrintStream(new java.io.ByteArrayOutputStream()));
+            assertEquals(3, AegisCli.run(new String[]{
+                    "plan-ddl-migration", ddl.toString(), "oracle", "public"}));
+        } finally {
+            System.setOut(original);
+        }
+    }
+
 }
