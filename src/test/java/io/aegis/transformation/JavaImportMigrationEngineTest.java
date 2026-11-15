@@ -42,6 +42,14 @@ class JavaImportMigrationEngineTest {
         assertTrue(result.diagnostics().stream().anyMatch(d -> "ERROR".equals(d.kind())));
     }
 
+    @Test void preservesImportFormattingAndComments() throws Exception {
+        String source = "import   /* keep javax.persistence.Entity */ javax.persistence.Entity;\\nclass A {}";
+        var result = engine.migrate(source, "A.java");
+        assertTrue(result.safeToReview());
+        assertTrue(result.transformedSource().contains(
+                "import   /* keep javax.persistence.Entity */ jakarta.persistence.Entity;"));
+    }
+
     @Test void isIdempotent() throws Exception {
         String source = "import javax.servlet.http.HttpServlet; class A {}";
         String once = engine.migrate(source, "A.java").transformedSource();

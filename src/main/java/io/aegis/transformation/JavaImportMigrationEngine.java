@@ -45,13 +45,12 @@ public final class JavaImportMigrationEngine {
                 String imported = declaration.getQualifiedIdentifier().toString();
                 String migrated = mapImport(imported);
                 if (migrated == null) continue;
-                long start = positions.getStartPosition(unit, declaration);
-                long end = positions.getEndPosition(unit, declaration);
+                long start = positions.getStartPosition(unit, declaration.getQualifiedIdentifier());
+                long end = positions.getEndPosition(unit, declaration.getQualifiedIdentifier());
                 if (start < 0 || end < start || end > source.length())
                     throw new IllegalStateException("Compiler did not provide safe source positions for import " + imported);
                 replacements.add(new Replacement((int) start, (int) end,
-                        source.substring((int) start, (int) end),
-                        "import " + migrated + ";", imported, migrated));
+                        source.substring((int) start, (int) end), migrated, imported, migrated));
             }
         }
         List<ParseIssue> issues = diagnostics.getDiagnostics().stream()
