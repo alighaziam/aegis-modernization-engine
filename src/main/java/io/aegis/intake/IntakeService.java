@@ -75,7 +75,7 @@ public final class IntakeService {
         if (r.project() == null || blank(r.project().id()) || blank(r.project().name())) throw new IntakeException("project.id and project.name are required");
         if (r.intake() == null || blank(r.intake().batchId()) || r.intake().artifacts() == null || r.intake().artifacts().isEmpty()) throw new IntakeException("intake.batchId and at least one artifact are required");
         String mode = r.intake().mode();
-        if (!List.of("single", "pair", "bundle", "incremental", "manual").contains(mode)) throw new IntakeException("Unsupported intake mode: " + mode);
+        if (mode == null || !List.of("single", "pair", "bundle", "incremental", "manual").contains(mode)) throw new IntakeException("Unsupported intake mode: " + mode);
         if ("single".equals(mode) && r.intake().artifacts().size() != 1) throw new IntakeException("single mode requires exactly one artifact");
         if ("pair".equals(mode) && r.intake().artifacts().size() != 2) throw new IntakeException("pair mode requires exactly two artifacts");
         for (ArtifactDescriptor a : r.intake().artifacts()) {
