@@ -23,9 +23,9 @@ class IntakeServiceTest {
                     "batchId": "batch-1",
                     "artifacts": [{
                       "artifactId": "a1",
-                      "category": "source",
+                      "category": "source_code",
                       "format": "text",
-                      "origin": "user"
+                      "origin": "manual"
                     }]
                   }
                 }
@@ -52,7 +52,7 @@ class IntakeServiceTest {
                     "mode": "single",
                     "artifacts": [{
                       "artifactId": "schema",
-                      "category": "database",
+                      "category": "database_metadata",
                       "format": "sql",
                       "origin": "user",
                       "location": "schema.sql"
