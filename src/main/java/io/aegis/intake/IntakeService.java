@@ -11,6 +11,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.List;
 import java.util.Objects;
 
@@ -56,6 +58,8 @@ public final class IntakeService {
             long size = Files.size(realArtifact);
             if (size > MAX_ARTIFACT_BYTES) throw new IntakeException("Artifact exceeds 100 MiB limit: " + descriptor.artifactId());
             String digest = sha256(realArtifact);
+            if (descriptor.sizeBytes() != null && descriptor.sizeBytes() != size)
+                throw new IntakeException("Size mismatch for artifact: " + descriptor.artifactId());
             if (descriptor.sha256() != null && !descriptor.sha256().equalsIgnoreCase(digest)) {
                 throw new IntakeException("SHA-256 mismatch for artifact: " + descriptor.artifactId());
             }
@@ -80,8 +84,16 @@ public final class IntakeService {
         if (mode == null || !List.of("single", "pair", "bundle", "incremental", "manual").contains(mode)) throw new IntakeException("Unsupported intake mode: " + mode);
         if ("single".equals(mode) && r.intake().artifacts().size() != 1) throw new IntakeException("single mode requires exactly one artifact");
         if ("pair".equals(mode) && r.intake().artifacts().size() != 2) throw new IntakeException("pair mode requires exactly two artifacts");
+        Set<String> artifactIds = new HashSet<>();
         for (ArtifactDescriptor a : r.intake().artifacts()) {
-            if (a == null || blank(a.artifactId()) || blank(a.category()) || blank(a.format()) || blank(a.origin())) throw new IntakeException("Every artifact requires artifactId, category, format and origin");
+            if (a == null || blank(a.artifactId()) || blank(a.category()) || blank(a.format()) || blank(a.origin()))
+                throw new IntakeException("Every artifact requires artifactId, category, format and origin");
+            if (!artifactIds.add(a.artifactId()))
+                throw new IntakeException("Duplicate artifactId: " + a.artifactId());
+            if (a.sha256() != null && !a.sha256().matches("(?i)[a-f0-9]{64}"))
+                throw new IntakeException("Invalid SHA-256 value for artifact: " + a.artifactId());
+            if (a.sizeBytes() != null && a.sizeBytes() < 0)
+                throw new IntakeException("Artifact sizeBytes cannot be negative: " + a.artifactId());
         }
     }
 
