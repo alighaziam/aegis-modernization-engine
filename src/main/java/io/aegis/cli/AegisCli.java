@@ -125,6 +125,8 @@ public final class AegisCli {
                       Parse the supported SQL DDL subset and emit JSON.
                   map-ddl <intake.json> <schema.sql> <oracle|postgresql> <store-id> <schema-name> [db-version]
                       Build a project UPKM and merge the parsed physical database schema.
+                  analyze-java <source.java> <intake.json>
+                      Extract Java declarations and imports into the project UPKM.
 
                 Exit codes:
                   0  completed without review warnings
