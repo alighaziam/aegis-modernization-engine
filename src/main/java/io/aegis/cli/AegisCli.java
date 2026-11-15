@@ -92,7 +92,9 @@ public final class AegisCli {
         return "-h".equals(arg) || "--help".equals(arg) || "help".equals(arg);
     }
 
-    public record DdlAnalysisOutput(ProjectKnowledgeModel knowledgeModel, SqlDdlParser.ParseResult ddl) {}\n\n    private static void usage() {
+    public record DdlAnalysisOutput(ProjectKnowledgeModel knowledgeModel, SqlDdlParser.ParseResult ddl) {}
+
+    private static void usage() {
         System.out.println("""
                 Aegis Modernization Engine (offline, deterministic)
 
