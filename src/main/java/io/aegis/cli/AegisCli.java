@@ -426,6 +426,8 @@ public final class AegisCli {
                       Infer logical entities and candidate business rules; review is required.
                   plan <intake.json> <java-version> <framework> <framework-version> <database> <frontend> <deployment>
                       Generate an explainable target architecture and migration sequence.
+                  plan-ddl-migration <schema.sql> <source-dialect> <target-dialect> <target-schema>
+                      Plan DDL conversion only when a tested source/target adapter exists.
                   db-check
                       Check Oracle connectivity and required schema tables.
                   store-intake <intake.json>
