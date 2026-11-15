@@ -45,7 +45,7 @@ public final class AegisCli {
 
     private static int runIntake(String[] args) throws Exception {
         if (args.length != 3) {
-            System.err.println("Usage: aegis intake <intake.json> <artifact-store-dir>");
+            System.err.println("Usage: aegis-modernization-engine intake <intake.json> <artifact-store-dir>");
             return 2;
         }
         IntakeService.IntakeReport report = new IntakeService(Path.of(args[2])).ingest(Path.of(args[1]));
@@ -55,7 +55,7 @@ public final class AegisCli {
 
     private static int runParseDdl(String[] args) throws Exception {
         if (args.length < 3 || args.length > 4) {
-            System.err.println("Usage: aegis parse-ddl <schema.sql> <oracle|postgresql> [source-name]");
+            System.err.println("Usage: aegis-modernization-engine parse-ddl <schema.sql> <oracle|postgresql> [source-name]");
             return 2;
         }
         Path input = Path.of(args[1]);
