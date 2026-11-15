@@ -88,7 +88,7 @@ A GitHub Actions workflow runs Java 25 compilation, tests, and distribution asse
 
 ## Status
 
-The project has an initial runtime foundation, not a production-ready modernization engine. Intake, evidence journaling, a canonical model, a limited SQL parser and CLI are implemented. Language/framework discovery, full AST analysis, logical data-model inference, architecture decision automation, migration planning, transformation engines, rollback generation and broad integration tests remain future milestones. Supported syntax and technology/version matrices must be expanded only with executable tests.
+The project has an initial runtime foundation, not a production-ready modernization engine. Intake, evidence journaling, a canonical model, a limited SQL parser and CLI are implemented. Framework/version discovery, semantic and cross-module source analysis, additional language parsers, OpenAPI ingestion, logical data-model inference, architecture decision automation, migration planning, transformation engines, rollback generation and broad integration tests remain future milestones. Supported syntax and technology/version matrices must be expanded only with executable tests.
 
 ## License
 
