@@ -324,7 +324,8 @@ public final class AegisCli {
     public record JavaImportMigrationOutput(JavaImportMigrationEngine.MigrationResult migration, boolean written) {}
     public record DdlMigrationOutput(SqlDdlParser.ParseResult sourceAnalysis,
                                      OraclePostgresDdlPlanner.MigrationPlan migrationPlan) {}
-    public record StoredArtifactOutput(String projectId, String artifactId, String sha256, long sizeBytes, String persistenceDatabase) {}\n    public record StoredProjectOutput(String projectId, String projectName,
+    public record StoredArtifactOutput(String projectId, String artifactId, String sha256, long sizeBytes, String persistenceDatabase) {}
+    public record StoredProjectOutput(String projectId, String projectName,
                                       java.time.Instant analyzedAt, String persistenceDatabase) {}
 
     private static boolean isHelp(String arg) {
