@@ -41,6 +41,7 @@ The repository now contains an initial executable Java implementation:
 - A conservative logical-model and business-rule inference pass that derives candidate entities from physical DDL and validation/guard markers from source text; all inferred facts are marked `INFERRED`.
 - A deterministic target architecture and phased migration planner driven by an explicit target profile.
 - A guarded text transformation engine with expected-occurrence/hash preconditions, SHA-256 backups and rollback conflict checks.
+- A conservative Oracle-to-PostgreSQL DDL planner for supported `CREATE TABLE` syntax; it maps an explicit type/constraint subset, omits unsafe defaults and flags unsupported constructs for review.
 - A syntax-aware Java import migration preview for a strict Jakarta namespace allowlist (`javax.persistence`, `javax.validation`, `javax.servlet`, `javax.transaction`); it uses JDK compiler parse trees, never broad text replacement, and defaults to preview-only.
 - A generated-artifact integrity validator that checks expected hashes and rejects paths escaping the project root.
 - Append-only evidence and conflict journals in `src/main/java/io/aegis/evidence`.
@@ -69,6 +70,9 @@ java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar map-ddl ./project
 
 # Extract Java declarations/imports and merge them into the project UPKM
 java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar analyze-java ./src/main/java/com/acme/OrderService.java ./project-intake.json
+
+# Generate a review-required PostgreSQL DDL plan from supported Oracle CREATE TABLE statements
+java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar plan-ddl-migration ./schema-oracle.sql oracle app
 
 # Preview only the explicitly supported javax-to-jakarta import migrations
 java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar migrate-java-imports ./src/main/java/com/acme/OrderService.java
@@ -104,7 +108,7 @@ A GitHub Actions workflow runs Java 25 compilation, tests, executable-JAR packag
 
 ## Status
 
-The project has an initial runtime foundation, not a production-ready modernization engine. Intake, evidence journaling, a canonical model, limited SQL/Java/OpenAPI analysis, technology discovery, migration planning, guarded transformations, rollback primitives and CLI are implemented at an early stage. Semantic and cross-module source analysis, additional language parsers, richer logical data-model inference, production-grade code/schema transformations and broad integration tests remain future milestones. The current Java import migrator is intentionally limited to four package roots and must not be interpreted as a complete Java EE/Jakarta migration. Supported syntax and technology/version matrices must be expanded only with executable tests.
+The project has an initial runtime foundation, not a production-ready modernization engine. Intake, evidence journaling, a canonical model, limited SQL/Java/OpenAPI analysis, technology discovery, migration planning, guarded transformations, rollback primitives and CLI are implemented at an early stage. Semantic and cross-module source analysis, additional language parsers, richer logical data-model inference, production-grade code/schema transformations and broad integration tests remain future milestones. The Oracle/PostgreSQL planner does not execute SQL, migrate data, convert PL/SQL, sequences, triggers, indexes or every Oracle datatype; generated DDL is a review artifact, not an executable migration guarantee. The current Java import migrator is intentionally limited to four package roots and must not be interpreted as a complete Java EE/Jakarta migration. Supported syntax and technology/version matrices must be expanded only with executable tests.
 
 ## License
 

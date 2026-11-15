@@ -17,6 +17,7 @@ import io.aegis.parser.sql.SqlDdlToKnowledgeMapper;
 import io.aegis.parser.java.JavaSourceAnalyzer;
 import io.aegis.parser.java.JavaSourceToKnowledgeMapper;
 import io.aegis.transformation.JavaImportMigrationEngine;
+import io.aegis.transformation.OraclePostgresDdlPlanner;
 import java.nio.file.StandardCopyOption;
 
 import java.nio.charset.StandardCharsets;
@@ -54,6 +55,7 @@ public final class AegisCli {
                 case "infer-model" -> runInferModel(args);
                 case "plan" -> runPlan(args);
                 case "migrate-java-imports" -> runMigrateJavaImports(args);
+                case "plan-ddl-migration" -> runPlanDdlMigration(args);
                 default -> {
                     System.err.println("Unknown command: " + args[0]);
                     usage();
@@ -180,6 +182,20 @@ public final class AegisCli {
         return 0;
     }
 
+    private static int runPlanDdlMigration(String[] args) throws Exception {
+        if (args.length != 4 || !"oracle".equalsIgnoreCase(args[2])) {
+            System.err.println("Usage: aegis-modernization-engine plan-ddl-migration <schema.sql> oracle <target-schema>");
+            return 2;
+        }
+        Path input = Path.of(args[1]);
+        String sql = Files.readString(input, StandardCharsets.UTF_8);
+        SqlDdlParser.ParseResult parsed = new SqlDdlParser().parse(sql, input.getFileName().toString(), "oracle");
+        OraclePostgresDdlPlanner.MigrationPlan plan =
+                new OraclePostgresDdlPlanner().plan(parsed, args[3]);
+        System.out.println(JSON.writeValueAsString(new DdlMigrationOutput(parsed, plan)));
+        return plan.diagnostics().stream().anyMatch(d -> "ERROR".equals(d.status())) ? 3 : 0;
+    }
+
     private static int runMigrateJavaImports(String[] args) throws Exception {
         if (args.length < 2 || args.length > 3 || (args.length == 3 && !"--write".equals(args[2]))) {
             System.err.println("Usage: aegis-modernization-engine migrate-java-imports <source.java> [--write]");
@@ -223,6 +239,8 @@ public final class AegisCli {
 
     public record OpenApiAnalysisOutput(ProjectKnowledgeModel knowledgeModel, OpenApiYamlAnalyzer.Analysis openApi) {}
     public record JavaImportMigrationOutput(JavaImportMigrationEngine.MigrationResult migration, boolean written) {}
+    public record DdlMigrationOutput(SqlDdlParser.ParseResult sourceAnalysis,
+                                     OraclePostgresDdlPlanner.MigrationPlan migrationPlan) {}
 
     private static boolean isHelp(String arg) {
         return "-h".equals(arg) || "--help".equals(arg) || "help".equals(arg);
