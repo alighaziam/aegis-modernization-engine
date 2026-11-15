@@ -428,6 +428,22 @@ public final class AegisCli {
                       Infer logical entities and candidate business rules; review is required.
                   plan <intake.json> <java-version> <framework> <framework-version> <database> <frontend> <deployment>
                       Generate an explainable target architecture and migration sequence.
+                  db-check
+                      Check Oracle connectivity and required schema tables.
+                  store-intake <intake.json>
+                      Atomically store the project snapshot and supplied artifacts in Oracle.
+                  store-artifact <project-id> <artifact-id> <category> <format> <origin> <file>
+                      Store one immutable artifact in Oracle.
+                  load-model <project-id>
+                      Load the latest stored project snapshot from Oracle.
+                  store-evidence <project-id> <evidence.json>
+                      Append a provenance evidence record to Oracle.
+                  list-evidence <project-id> <analysis-run-id>
+                      Read provenance evidence for an analysis run.
+                  store-conflict-event <project-id> <event.json>
+                      Append a conflict lifecycle event to Oracle.
+                  list-conflicts <project-id>
+                      Read append-only conflict history from Oracle.
 
                 Exit codes:
                   0  completed without review warnings
