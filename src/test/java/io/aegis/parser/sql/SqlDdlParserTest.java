@@ -24,6 +24,7 @@ class SqlDdlParserTest {
         assertEquals(1, result.tables().size());
         assertEquals("customers", result.tables().get(0).name());
         assertEquals(3, result.tables().get(0).columns().size());
+        assertEquals("BIGINT", result.tables().get(0).columns().get(2).dataType());
         assertTrue(result.tables().get(0).constraints().stream()
                 .anyMatch(c -> "FOREIGN_KEY".equals(c.type())));
         assertEquals(1, result.indexes().size());
