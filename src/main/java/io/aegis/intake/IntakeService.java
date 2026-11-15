@@ -29,9 +29,7 @@ public final class IntakeService {
 
     public IntakeReport ingest(Path intakeFile) throws IOException {
         Path source = intakeFile.toAbsolutePath().normalize();
-        if (!Files.isRegularFile(source)) throw new IntakeException("Intake file does not exist: " + source);
-        IntakeRequest request = mapper.readValue(source.toFile(), IntakeRequest.class);
-        validate(request);
+        IntakeRequest request = readRequest(source);
         Path base = source.getParent();
         Path baseReal = base.toRealPath();
         Files.createDirectories(artifactStore.resolve("objects"));
@@ -74,6 +72,16 @@ public final class IntakeService {
         Path reportPath = artifactStore.resolve("metadata").resolve(safeName(request.project().id()) + "-" + safeName(request.intake().batchId()) + ".json");
         mapper.writerWithDefaultPrettyPrinter().writeValue(reportPath.toFile(), report);
         return report;
+    }
+
+    public static IntakeRequest readRequest(Path intakeFile) throws IOException {
+        Path source = intakeFile.toAbsolutePath().normalize();
+        if (!Files.isRegularFile(source)) throw new IntakeException("Intake file does not exist: " + source);
+        ObjectMapper reader = new ObjectMapper()
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true);
+        IntakeRequest request = reader.readValue(source.toFile(), IntakeRequest.class);
+        validate(request);
+        return request;
     }
 
     private static void validate(IntakeRequest r) {
