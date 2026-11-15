@@ -215,7 +215,7 @@ public final class AegisCli {
             System.out.println(JSON.writeValueAsString(plan));
             return 0;
         }
-        Files.writeString(output, plan.migratedSource(), StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+        Files.writeString(output, plan.migratedSource(), StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
         System.out.println(JSON.writeValueAsString(new JavaImportMigrationOutput(output.toString(), plan)));
         return 0;
     }
