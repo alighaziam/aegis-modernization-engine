@@ -9,12 +9,12 @@ import java.util.Optional;
  */
 public final class DatabaseDialectRegistry {
     private static final List<Capability> CAPABILITIES = List.of(
-            new Capability(DatabaseDialect.ORACLE, true, true, false, "Oracle DDL subset; Oracle-to-PostgreSQL planner only"),
-            new Capability(DatabaseDialect.POSTGRESQL, true, false, false, "Common DDL subset; no general target planner"),
-            new Capability(DatabaseDialect.MYSQL, true, false, false, "Common DDL subset; vendor-specific syntax is diagnostic"),
-            new Capability(DatabaseDialect.MARIADB, true, false, false, "Common DDL subset; vendor-specific syntax is diagnostic"),
-            new Capability(DatabaseDialect.SQLSERVER, true, false, false, "Common DDL subset; T-SQL-specific syntax is diagnostic"),
-            new Capability(DatabaseDialect.DB2, true, false, false, "Common DDL subset; DB2-specific syntax is diagnostic")
+            new Capability(DatabaseDialect.ORACLE, true, true, true, "Common DDL subset; Oracle-to-PostgreSQL has a specialized planner; other pairs use conservative common mappings"),
+            new Capability(DatabaseDialect.POSTGRESQL, true, false, true, "Common DDL subset; conservative cross-dialect mappings only"),
+            new Capability(DatabaseDialect.MYSQL, true, false, true, "Common DDL subset; vendor-specific syntax is diagnostic"),
+            new Capability(DatabaseDialect.MARIADB, true, false, true, "Common DDL subset; vendor-specific syntax is diagnostic"),
+            new Capability(DatabaseDialect.SQLSERVER, true, false, true, "Common DDL subset; T-SQL-specific syntax is diagnostic"),
+            new Capability(DatabaseDialect.DB2, true, false, true, "Common DDL subset; DB2-specific syntax is diagnostic")
     );
 
     public List<Capability> all() { return CAPABILITIES; }

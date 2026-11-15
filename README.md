@@ -42,7 +42,7 @@ The repository now contains an initial executable Java implementation:
 - A deterministic target architecture and phased migration planner driven by an explicit target profile.
 - A guarded text transformation engine with expected-occurrence/hash preconditions, SHA-256 backups and rollback conflict checks.
 - An initial Oracle-backed internal persistence adapter for versioned UPKM snapshots, isolated behind a database-neutral repository interface.
-- A conservative Oracle-to-PostgreSQL DDL planner for supported `CREATE TABLE` syntax; it maps an explicit type/constraint subset, omits unsafe defaults and flags unsupported constructs for review.
+- A conservative cross-dialect DDL adapter matrix for the supported `CREATE TABLE` / `CREATE INDEX` subset across Oracle, PostgreSQL, MySQL, MariaDB, SQL Server and DB2. Oracle-to-PostgreSQL retains a specialized planner; other pairs use explicit common-type mappings, dialect-specific identifier quoting, and review diagnostics. Unsupported columns cause the affected table to be omitted rather than partially generated. Defaults and vendor-specific semantics are never guessed.
 - A syntax-aware Java import migration preview for a strict Jakarta namespace allowlist (`javax.persistence`, `javax.validation`, `javax.servlet`, `javax.transaction`); it uses JDK compiler parse trees, never broad text replacement, and defaults to preview-only.
 - A generated-artifact integrity validator that checks expected hashes and rejects paths escaping the project root.
 - Append-only evidence and conflict journals in `src/main/java/io/aegis/evidence`.

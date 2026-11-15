@@ -16,10 +16,11 @@ class DatabaseDialectRegistryTest {
     }
 
     @Test
-    void reportsCapabilitiesWithoutClaimingFullMigrationSupport() {
+    void reportsConservativeCommonSubsetMigrationCapabilities() {
         DatabaseDialectRegistry registry = new DatabaseDialectRegistry();
         assertTrue(registry.find("mysql").orElseThrow().commonDdlParser());
-        assertFalse(registry.find("mysql").orElseThrow().generalMigrationPlanner());
+        assertTrue(registry.find("mysql").orElseThrow().generalMigrationPlanner());
+        assertTrue(registry.find("mysql").orElseThrow().limitations().contains("Common DDL subset"));
         assertTrue(registry.find("oracle").orElseThrow().oracleToPostgresSource());
         assertTrue(registry.find("sqlserver").isPresent());
         assertTrue(registry.find("db2").isPresent());
