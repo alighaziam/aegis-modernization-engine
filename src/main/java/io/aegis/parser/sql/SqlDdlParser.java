@@ -103,7 +103,7 @@ public final class SqlDdlParser {
         if (!m.find()) { diagnostics.add(diag("UNPARSED_COLUMN", "Could not parse column definition: " + abbreviate(text), line)); return null; }
         String name = cleanName(m.group(1));
         String rest = m.group(2).trim();
-        Matcher type = Pattern.compile("^([A-Za-z][A-Za-z0-9_ ]*)(?:\\s*\\((\\d+)(?:\\s*,\\s*(\\d+))?\\))?").matcher(rest);
+        Matcher type = Pattern.compile("(?i)^([A-Za-z][A-Za-z0-9_]*(?:\\s+(?:PRECISION|VARYING|WITH|WITHOUT|TIME|ZONE))*)(?:\\s*\\((\\d+)(?:\\s*,\\s*(\\d+))?\\))?").matcher(rest);
         if (!type.find()) { diagnostics.add(diag("UNSUPPORTED_COLUMN_TYPE", "Could not identify data type for " + name, line)); return null; }
         String dataType = type.group(1).trim().replaceAll("\\s+", " ");
         Integer first = integer(type.group(2)); Integer second = integer(type.group(3));
