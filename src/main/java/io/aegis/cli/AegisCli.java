@@ -16,6 +16,8 @@ import io.aegis.parser.sql.SqlDdlParser;
 import io.aegis.parser.sql.SqlDdlToKnowledgeMapper;
 import io.aegis.parser.java.JavaSourceAnalyzer;
 import io.aegis.parser.java.JavaSourceToKnowledgeMapper;
+import io.aegis.transformation.JavaImportMigrationEngine;
+import java.nio.file.StandardCopyOption;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -51,6 +53,7 @@ public final class AegisCli {
                 case "analyze-openapi" -> runAnalyzeOpenApi(args);
                 case "infer-model" -> runInferModel(args);
                 case "plan" -> runPlan(args);
+                case "migrate-java-imports" -> runMigrateJavaImports(args);
                 default -> {
                     System.err.println("Unknown command: " + args[0]);
                     usage();
@@ -177,6 +180,33 @@ public final class AegisCli {
         return 0;
     }
 
+    private static int runMigrateJavaImports(String[] args) throws Exception {
+        if (args.length < 2 || args.length > 3 || (args.length == 3 && !"--write".equals(args[2]))) {
+            System.err.println("Usage: aegis-modernization-engine migrate-java-imports <source.java> [--write]");
+            return 2;
+        }
+        Path sourceFile = Path.of(args[1]).toAbsolutePath().normalize();
+        String source = Files.readString(sourceFile, StandardCharsets.UTF_8);
+        JavaImportMigrationEngine.MigrationResult result =
+                new JavaImportMigrationEngine().migrate(source, sourceFile.getFileName().toString());
+        boolean written = false;
+        if (args.length == 3 && result.safeToReview() && !result.replacements().isEmpty()) {
+            Path backup = sourceFile.resolveSibling(sourceFile.getFileName() + ".aegis.bak");
+            if (Files.exists(backup)) throw new IllegalStateException("Backup already exists; refusing to overwrite: " + backup);
+            Files.copy(sourceFile, backup, StandardCopyOption.COPY_ATTRIBUTES);
+            Path temp = Files.createTempFile(sourceFile.getParent(), ".aegis-", ".tmp");
+            try {
+                Files.writeString(temp, result.transformedSource(), StandardCharsets.UTF_8);
+                Files.move(temp, sourceFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } finally {
+                Files.deleteIfExists(temp);
+            }
+            written = true;
+        }
+        System.out.println(JSON.writeValueAsString(new JavaImportMigrationOutput(result, written)));
+        return result.safeToReview() ? 0 : 3;
+    }
+
     private static int runPlan(String[] args) throws Exception {
         if (args.length != 8) {
             System.err.println("Usage: aegis-modernization-engine plan <intake.json> <java-version> <framework> <framework-version> <database> <frontend> <deployment>");
@@ -192,6 +222,7 @@ public final class AegisCli {
     }
 
     public record OpenApiAnalysisOutput(ProjectKnowledgeModel knowledgeModel, OpenApiYamlAnalyzer.Analysis openApi) {}
+    public record JavaImportMigrationOutput(JavaImportMigrationEngine.MigrationResult migration, boolean written) {}
 
     private static boolean isHelp(String arg) {
         return "-h".equals(arg) || "--help".equals(arg) || "help".equals(arg);
