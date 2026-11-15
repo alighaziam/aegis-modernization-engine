@@ -8,12 +8,12 @@ import java.util.List;
 public final class IntakeToKnowledgeModelMapper {
     public ProjectKnowledgeModel map(IntakeService.IntakeRequest request) {
         IntakeService.ProjectInput p = request.project();
-        List\u003cProjectKnowledgeModel.SourceArtifact\u003e artifacts = new ArrayList\u003e();
+        List\u003cProjectKnowledgeModel.SourceArtifact\u003e artifacts = new ArrayList\u003c\u003e();
         for (IntakeService.ArtifactDescriptor a : request.intake().artifacts()) {
             artifacts.add(new ProjectKnowledgeModel.SourceArtifact(a.artifactId(), a.category(), a.format(),
                     a.origin(), a.location(), a.sha256(), a.sizeBytes() == null ? 0 : a.sizeBytes()));
         }
-        List\u003cProjectKnowledgeModel.Technology\u003e technologies = new ArrayList\u003e();
+        List\u003cProjectKnowledgeModel.Technology\u003e technologies = new ArrayList\u003c\u003e();
         add(technologies, request.technology() == null ? null : request.technology().source(), ProjectKnowledgeModel.Layer.SOURCE);
         add(technologies, request.technology() == null ? null : request.technology().target(), ProjectKnowledgeModel.Layer.TARGET);
         return new ProjectKnowledgeModel(new ProjectKnowledgeModel.Project(p.id(), p.name(), p.description(), p.businessDomain()),
