@@ -19,8 +19,6 @@ import io.aegis.parser.java.JavaSourceAnalyzer;
 import io.aegis.parser.java.JavaSourceToKnowledgeMapper;
 import io.aegis.transformation.JavaImportMigrationEngine;
 import io.aegis.transformation.OraclePostgresDdlPlanner;
-import io.aegis.persistence.ArtifactRepository;
-import io.aegis.persistence.OracleArtifactDigest;
 import io.aegis.persistence.oracle.OracleArtifactRepository;
 import io.aegis.persistence.oracle.OracleConnectionConfig;
 import io.aegis.persistence.oracle.OracleProjectRepository;
@@ -135,14 +133,10 @@ public final class AegisCli {
             System.err.println("Usage: aegis-modernization-engine store-artifact <project-id> <artifact-id> <category> <format> <origin> <file>");
             return 2;
         }
-        byte[] content = Files.readAllBytes(Path.of(args[6]));
-        if (content.length > 100L * 1024L * 1024L)
-            throw new IllegalArgumentException("Artifact exceeds the 100 MiB persistence limit");
-        String digest = OracleArtifactDigest.sha256(content);
-        ArtifactRepository.ArtifactContent artifact = new ArtifactRepository.ArtifactContent(
-                args[1], args[2], args[3], args[4], args[5], digest, content, java.time.Instant.now());
+        OracleArtifactRepository.StoredArtifact artifact;
         try (HikariDataSource dataSource = OracleConnectionConfig.fromEnvironment().createDataSource()) {
-            new OracleArtifactRepository(dataSource).save(artifact);
+            artifact = new OracleArtifactRepository(dataSource).saveFile(
+                    args[1], args[2], args[3], args[4], args[5], Path.of(args[6]));
         }
         System.out.println(JSON.writeValueAsString(new StoredArtifactOutput(
                 artifact.projectId(), artifact.artifactId(), artifact.sha256(), artifact.sizeBytes(), "ORACLE")));
