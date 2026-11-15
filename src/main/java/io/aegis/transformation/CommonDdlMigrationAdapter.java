@@ -11,7 +11,7 @@ import java.util.regex.Pattern;
 
 /**
  * Conservative cross-dialect adapter for the CREATE TABLE/INDEX subset parsed by Aegis.
- * It deliberately omits defaults and vendor-specific semantics that cannot be proven safe.
+ * Unsupported or ambiguous semantics are omitted with diagnostics; SQL is never executed.
  */
 public final class CommonDdlMigrationAdapter {
     private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_$#]*");
@@ -22,17 +22,18 @@ public final class CommonDdlMigrationAdapter {
                 ? defaultSchema(target) : requestedSchema.trim();
         List<String> statements = new ArrayList<>();
         List<DatabaseMigrationPlanner.Diagnostic> diagnostics = new ArrayList<>();
-
         if (!IDENTIFIER.matcher(schema).matches()) {
             diagnostics.add(new DatabaseMigrationPlanner.Diagnostic(
                     "UNSAFE_TARGET_SCHEMA", "Target schema must be a simple SQL identifier.", "ERROR"));
             return result(parsed, target, schema, statements, diagnostics);
         }
+
+        DatabaseDialect source = DatabaseDialect.from(parsed.vendor());
         parsed.diagnostics().forEach(d -> diagnostics.add(new DatabaseMigrationPlanner.Diagnostic(
                 "SOURCE_" + d.code(), d.message(), "REVIEW_REQUIRED")));
 
         for (SqlDdlParser.Table table : parsed.tables()) {
-            String tableName = qualified(table.name(), target);
+            String tableName = tableName(table.name(), target);
             if (tableName == null) {
                 diagnostics.add(new DatabaseMigrationPlanner.Diagnostic(
                         "UNSAFE_TABLE_NAME", "Unsupported table identifier: " + table.name(), "ERROR"));
@@ -42,12 +43,12 @@ public final class CommonDdlMigrationAdapter {
             boolean complete = true;
             for (SqlDdlParser.Column column : table.columns()) {
                 String name = quote(column.name(), target);
-                String type = mapType(column, DatabaseDialect.from(parsed.vendor()), target);
+                String type = mapType(column, source, target);
                 if (name == null || type == null) {
                     complete = false;
                     diagnostics.add(new DatabaseMigrationPlanner.Diagnostic(
                             "UNSUPPORTED_COLUMN_TYPE", "No safe " + target + " mapping for "
-                                    + table.name() + "." + column.name() + " (" + column.dataType() + ").",
+                            + table.name() + "." + column.name() + " (" + column.dataType() + ").",
                             "REVIEW_REQUIRED"));
                     continue;
                 }
@@ -55,7 +56,7 @@ public final class CommonDdlMigrationAdapter {
                 if (column.defaultExpression() != null && !column.defaultExpression().isBlank()) {
                     diagnostics.add(new DatabaseMigrationPlanner.Diagnostic(
                             "DEFAULT_REQUIRES_REVIEW", "Default omitted on " + table.name() + "."
-                                    + column.name() + ": " + column.defaultExpression(), "REVIEW_REQUIRED"));
+                            + column.name() + ": " + column.defaultExpression(), "REVIEW_REQUIRED"));
                 }
             }
             for (SqlDdlParser.Constraint constraint : table.constraints()) {
@@ -65,7 +66,7 @@ public final class CommonDdlMigrationAdapter {
             if (!complete || definitions.isEmpty()) {
                 diagnostics.add(new DatabaseMigrationPlanner.Diagnostic(
                         "TABLE_NOT_EMITTED", "Table " + table.name()
-                                + " was omitted because its definition is incomplete.", "REVIEW_REQUIRED"));
+                        + " was omitted because its definition is incomplete.", "REVIEW_REQUIRED"));
                 continue;
             }
             statements.add("CREATE TABLE " + quote(schema, target) + "." + tableName
@@ -74,12 +75,12 @@ public final class CommonDdlMigrationAdapter {
 
         for (SqlDdlParser.Index index : parsed.indexes()) {
             String name = quote(index.name(), target);
-            String table = qualified(index.tableName(), target);
+            String table = tableName(index.tableName(), target);
             List<String> columns = quoteAll(index.columns(), target);
             if (name == null || table == null || columns.isEmpty()) {
                 diagnostics.add(new DatabaseMigrationPlanner.Diagnostic(
                         "INDEX_REQUIRES_REVIEW", "Index " + index.name()
-                                + " contains unsupported identifiers and was omitted.", "REVIEW_REQUIRED"));
+                        + " contains unsupported identifiers and was omitted.", "REVIEW_REQUIRED"));
                 continue;
             }
             statements.add("CREATE " + (index.unique() ? "UNIQUE " : "") + "INDEX " + name
@@ -90,7 +91,7 @@ public final class CommonDdlMigrationAdapter {
         diagnostics.add(new DatabaseMigrationPlanner.Diagnostic(
                 "MANUAL_REVIEW_REQUIRED",
                 "Review identity generation, sequences, defaults, collations, triggers, partitioning, "
-                        + "vendor extensions, constraint semantics and data conversion before execution.",
+                + "vendor extensions, constraints and data conversion before execution.",
                 "REVIEW_REQUIRED"));
         return result(parsed, target, schema, statements, diagnostics);
     }
@@ -104,9 +105,8 @@ public final class CommonDdlMigrationAdapter {
 
     private static String defaultSchema(DatabaseDialect dialect) {
         return switch (dialect) {
-            case ORACLE -> "APP";
+            case ORACLE, DB2 -> "APP";
             case SQLSERVER -> "dbo";
-            case DB2 -> "APP";
             default -> "public";
         };
     }
@@ -133,18 +133,20 @@ public final class CommonDdlMigrationAdapter {
                     || target == DatabaseDialect.SQLSERVER || target == DatabaseDialect.DB2 ? "DECIMAL" : "NUMERIC");
             return type + "(" + length + "," + scale + ")";
         }
+
         if (Set.of("INT", "INTEGER", "SMALLINT", "BIGINT", "TINYINT").contains(raw)) {
             return switch (target) {
-                case ORACLE -> raw.equals("BIGINT") ? "NUMBER(19)" : raw.equals("SMALLINT") ? "NUMBER(5)" : "NUMBER(10)";
+                case ORACLE -> raw.equals("BIGINT") ? "NUMBER(19)"
+                        : raw.equals("SMALLINT") ? "NUMBER(5)" : "NUMBER(10)";
                 case POSTGRESQL -> raw.equals("TINYINT") ? "SMALLINT" : raw.equals("INT") ? "INTEGER" : raw;
                 case MYSQL, MARIADB -> raw.equals("INTEGER") ? "INT" : raw;
-                case SQLSERVER -> raw.equals("INT") || raw.equals("INTEGER") ? "INT" : raw;
+                case SQLSERVER -> raw.equals("INTEGER") ? "INT" : raw;
                 case DB2 -> raw.equals("TINYINT") ? "SMALLINT" : raw.equals("INT") ? "INTEGER" : raw;
                 default -> null;
             };
         }
-        if (raw.startsWith("VARCHAR") || raw.startsWith("NVARCHAR")
-                || raw.startsWith("CHARACTER VARYING")) {
+
+        if (raw.startsWith("VARCHAR") || raw.startsWith("NVARCHAR") || raw.startsWith("CHARACTER VARYING")) {
             if (length <= 0) return switch (target) {
                 case ORACLE, DB2 -> "CLOB";
                 case POSTGRESQL -> "TEXT";
@@ -158,11 +160,13 @@ public final class CommonDdlMigrationAdapter {
                 default -> "VARCHAR(" + length + ")";
             };
         }
+
         if (raw.equals("CHAR") || raw.equals("NCHAR")) {
             if (length <= 0) return target == DatabaseDialect.SQLSERVER && raw.equals("NCHAR") ? "NCHAR" : "CHAR";
             return target == DatabaseDialect.SQLSERVER && raw.equals("NCHAR")
                     ? "NCHAR(" + length + ")" : "CHAR(" + length + ")";
         }
+
         if (Set.of("CLOB", "NCLOB", "TEXT", "LONGTEXT", "NTEXT").contains(raw)) {
             return switch (target) {
                 case ORACLE, DB2 -> "CLOB";
@@ -172,7 +176,18 @@ public final class CommonDdlMigrationAdapter {
                 default -> null;
             };
         }
-        if (Set.of("BLOB", "BYTEA", "IMAGE", "VARBINARY", "BINARY", "RAW").contains(raw)) {
+
+        if (raw.equals("RAW")) {
+            return switch (target) {
+                case ORACLE -> "RAW(" + (length > 0 ? length : 2000) + ")";
+                case POSTGRESQL -> "BYTEA";
+                case MYSQL, MARIADB -> length > 0 ? "BINARY(" + length + ")" : "LONGBLOB";
+                case SQLSERVER -> length > 0 ? "VARBINARY(" + length + ")" : "VARBINARY(MAX)";
+                case DB2 -> length > 0 ? "CHAR(" + length + ") FOR BIT DATA" : "BLOB";
+                default -> null;
+            };
+        }
+        if (Set.of("BLOB", "BYTEA", "IMAGE").contains(raw)) {
             return switch (target) {
                 case ORACLE, DB2 -> "BLOB";
                 case POSTGRESQL -> "BYTEA";
@@ -181,6 +196,17 @@ public final class CommonDdlMigrationAdapter {
                 default -> null;
             };
         }
+        if (Set.of("VARBINARY", "BINARY").contains(raw)) {
+            return switch (target) {
+                case ORACLE -> "RAW(" + (length > 0 ? length : 2000) + ")";
+                case POSTGRESQL -> "BYTEA";
+                case MYSQL, MARIADB -> length > 0 ? "BINARY(" + length + ")" : "LONGBLOB";
+                case SQLSERVER -> length > 0 ? "VARBINARY(" + length + ")" : "VARBINARY(MAX)";
+                case DB2 -> length > 0 ? "CHAR(" + length + ") FOR BIT DATA" : "BLOB";
+                default -> null;
+            };
+        }
+
         if (raw.equals("DATE")) {
             if (source != DatabaseDialect.ORACLE) return "DATE";
             return switch (target) {
@@ -192,8 +218,20 @@ public final class CommonDdlMigrationAdapter {
                 default -> null;
             };
         }
+
         if (raw.startsWith("TIMESTAMP") || raw.equals("DATETIME") || raw.equals("DATETIME2")) {
             int precision = column.length() == null ? 6 : Math.min(Math.max(length, 0), 7);
+            boolean withTimeZone = raw.contains("WITH TIME ZONE") || raw.contains("LOCAL TIME ZONE");
+            if (withTimeZone) {
+                return switch (target) {
+                    case ORACLE -> "TIMESTAMP(" + Math.min(precision, 9) + ") WITH TIME ZONE";
+                    case POSTGRESQL -> "TIMESTAMP(" + Math.min(precision, 6) + ") WITH TIME ZONE";
+                    case SQLSERVER -> "DATETIMEOFFSET(" + precision + ")";
+                    case DB2 -> "TIMESTAMP(" + Math.min(precision, 12) + ") WITH TIME ZONE";
+                    case MYSQL, MARIADB -> null;
+                    default -> null;
+                };
+            }
             return switch (target) {
                 case ORACLE -> "TIMESTAMP(" + Math.min(precision, 9) + ")";
                 case POSTGRESQL -> "TIMESTAMP(" + Math.min(precision, 6) + ") WITHOUT TIME ZONE";
@@ -203,6 +241,7 @@ public final class CommonDdlMigrationAdapter {
                 default -> null;
             };
         }
+
         if (Set.of("FLOAT", "REAL", "DOUBLE", "DOUBLE PRECISION", "BINARY_FLOAT", "BINARY_DOUBLE").contains(raw)) {
             return switch (target) {
                 case ORACLE -> raw.equals("REAL") || raw.equals("BINARY_FLOAT") ? "BINARY_FLOAT" : "BINARY_DOUBLE";
@@ -213,6 +252,7 @@ public final class CommonDdlMigrationAdapter {
                 default -> null;
             };
         }
+
         if (Set.of("BOOLEAN", "BOOL", "BIT").contains(raw)) {
             return switch (target) {
                 case ORACLE -> "NUMBER(1)";
@@ -222,6 +262,7 @@ public final class CommonDdlMigrationAdapter {
                 default -> null;
             };
         }
+
         if (Set.of("UUID", "UNIQUEIDENTIFIER").contains(raw)) {
             return switch (target) {
                 case ORACLE -> "RAW(16)";
@@ -235,7 +276,7 @@ public final class CommonDdlMigrationAdapter {
         return null;
     }
 
-    private static String mapConstraint(SqlDdlParser.Constraint constraint, DatabaseDialect target,
+    private static String mapConstraint(SqlDdlParser.Constraint constraint, DatabaseDialect target, String schema,
                                         List<DatabaseMigrationPlanner.Diagnostic> diagnostics) {
         String name = quote(constraint.name(), target);
         List<String> columns = quoteAll(constraint.columns(), target);
@@ -249,7 +290,8 @@ public final class CommonDdlMigrationAdapter {
             case "PRIMARY_KEY" -> prefix + "PRIMARY KEY (" + String.join(", ", columns) + ")";
             case "UNIQUE" -> prefix + "UNIQUE (" + String.join(", ", columns) + ")";
             case "FOREIGN_KEY" -> {
-                String referencedTable = qualified(constraint.referencedTable(), target);\n                String referenced = referencedTable == null ? null : quote(schema, target) + "." + referencedTable;
+                String referencedTable = tableName(constraint.referencedTable(), target);
+                String referenced = referencedTable == null ? null : quote(schema, target) + "." + referencedTable;
                 List<String> referencedColumns = quoteAll(constraint.referencedColumns(), target);
                 if (referenced == null || referencedColumns.isEmpty()) {
                     diagnostics.add(new DatabaseMigrationPlanner.Diagnostic(
@@ -267,6 +309,12 @@ public final class CommonDdlMigrationAdapter {
         };
     }
 
+    private static String tableName(String value, DatabaseDialect dialect) {
+        if (value == null || value.isBlank()) return null;
+        String[] parts = value.split("\\.", -1);
+        return quote(parts[parts.length - 1], dialect);
+    }
+
     private static List<String> quoteAll(List<String> values, DatabaseDialect dialect) {
         if (values == null || values.isEmpty()) return List.of();
         List<String> result = new ArrayList<>();
@@ -278,21 +326,10 @@ public final class CommonDdlMigrationAdapter {
         return result;
     }
 
-    private static String qualified(String value, DatabaseDialect dialect) {
-        if (value == null || value.isBlank()) return null;
-        List<String> parts = new ArrayList<>();
-        for (String part : value.split("\\.", -1)) {
-            String quoted = quote(part, dialect);
-            if (quoted == null) return null;
-            parts.add(quoted);
-        }
-        return String.join(".", parts);
-    }
-
     private static String quote(String value, DatabaseDialect dialect) {
         if (value == null || !IDENTIFIER.matcher(value).matches()) return null;
         return switch (dialect) {
-            case MYSQL, MARIADB -> "`" + value + "`";
+            case MYSQL, MARIADB -> String.valueOf((char) 96) + value + String.valueOf((char) 96);
             case SQLSERVER -> "[" + value + "]";
             default -> "\"" + value + "\"";
         };
