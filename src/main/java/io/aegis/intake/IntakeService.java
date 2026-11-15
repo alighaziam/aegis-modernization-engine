@@ -37,8 +37,8 @@ public final class IntakeService {
         Files.createDirectories(artifactStore.resolve("objects"));
         Files.createDirectories(artifactStore.resolve("metadata"));
 
-        List\u003cArtifactResult\u003e results = new ArrayList\u003e();
-        List\u003cString\u003e warnings = new ArrayList\u003e();
+        List\u003cArtifactResult\u003e results = new ArrayList\u003c\u003e();
+        List\u003cString\u003e warnings = new ArrayList\u003c\u003e();
         for (ArtifactDescriptor descriptor : request.intake().artifacts()) {
             if (descriptor.location() == null || descriptor.location().isBlank()) {
                 results.add(new ArtifactResult(descriptor.artifactId(), "MISSING_LOCATION", null, 0));
