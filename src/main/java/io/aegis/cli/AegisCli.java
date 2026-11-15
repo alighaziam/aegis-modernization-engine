@@ -103,6 +103,8 @@ public final class AegisCli {
                       Validate an intake envelope and register supplied artifacts.
                   parse-ddl <schema.sql> <oracle|postgresql> [source-name]
                       Parse the supported SQL DDL subset and emit JSON.
+                  map-ddl <intake.json> <schema.sql> <oracle|postgresql> <store-id> <schema-name> [db-version]
+                      Build a project UPKM and merge the parsed physical database schema.
 
                 Exit codes:
                   0  completed without review warnings
