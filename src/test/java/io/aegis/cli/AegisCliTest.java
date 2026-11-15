@@ -55,4 +55,36 @@ class AegisCliTest {
                 "map-ddl", intake.toString(), sql.toString(), "postgresql", "main-db", "public", "16"}));
     }
 
+    @Test
+    void analyzeJavaCommandAddsTypesToProjectKnowledgeModel() throws Exception {
+        Path intake = tempDir.resolve("java-project.json");
+        Files.writeString(intake, """
+                {
+                  "schemaVersion": "1.0",
+                  "project": {"id": "demo", "name": "Demo"},
+                  "intake": {
+                    "batchId": "java-batch",
+                    "mode": "single",
+                    "artifacts": [{
+                      "artifactId": "source",
+                      "category": "source_code",
+                      "format": "java",
+                      "origin": "manual"
+                    }]
+                  }
+                }
+                """);
+        Path java = tempDir.resolve("CustomerService.java");
+        Files.writeString(java, """
+                package com.acme;
+                import java.util.List;
+                public class CustomerService {
+                    public List<String> find() { return List.of(); }
+                }
+                """);
+
+        assertEquals(0, AegisCli.run(new String[]{
+                "analyze-java", java.toString(), intake.toString()}));
+    }
+
 }
