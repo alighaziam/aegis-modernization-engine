@@ -57,7 +57,18 @@ public final class JavaSourceAnalyzer {
                 @Override
                 public Void visitClass(ClassTree node, Void unused) {
                     String simpleName = node.getSimpleName().toString();
-                    if (simpleName.isBlank()) return super.visitClass(node, unused);
+                    if (simpleName.isBlank()) {
+                        TypeBuilder enclosing = parents.peekLast();
+                        String owner = enclosing == null ? packageName : enclosing.qualifiedName;
+                        TypeBuilder anonymous = new TypeBuilder(owner + ".$anonymous$" + line(unit, node, positions),
+                                "$anonymous", "anonymous", List.of(), null, List.of(), line(unit, node, positions));
+                        parents.addLast(anonymous);
+                        try {
+                            return super.visitClass(node, unused);
+                        } finally {
+                            parents.removeLast();
+                        }
+                    }
                     TypeBuilder parent = parents.peekLast();
                     String qualifiedName = parent != null ? parent.qualifiedName + "." + simpleName
                             : packageName.isBlank() ? simpleName : packageName + "." + simpleName;
