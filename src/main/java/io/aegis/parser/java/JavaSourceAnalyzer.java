@@ -5,9 +5,10 @@ import com.sun.source.tree.CompilationUnitTree;
 import com.sun.source.tree.ImportTree;
 import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.Tree;
-import com.sun.source.tree.VariableTree;
 import com.sun.source.util.JavacTask;
+import com.sun.source.util.SourcePositions;
 import com.sun.source.util.TreePathScanner;
+import com.sun.source.util.Trees;
 
 import javax.tools.DiagnosticCollector;
 import javax.tools.JavaFileObject;
@@ -19,8 +20,6 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Parses Java source with the JDK compiler tree API. It never compiles, loads,
@@ -39,6 +38,8 @@ public final class JavaSourceAnalyzer {
         JavaFileObject input = new StringSource(sourceName, source);
         JavacTask task = (JavacTask) compiler.getTask(null, null, collector,
                 List.of("-proc:none", "-Xlint:none"), null, List.of(input));
+        Trees trees = Trees.instance(task);
+        SourcePositions positions = trees.getSourcePositions();
 
         List<SourceFile> files = new ArrayList<>();
         for (CompilationUnitTree unit : task.parse()) {
@@ -47,26 +48,28 @@ public final class JavaSourceAnalyzer {
             for (ImportTree item : unit.getImports()) {
                 imports.add(new ImportDeclaration(item.isStatic(),
                         item.getQualifiedIdentifier().toString(),
-                        line(unit, item)));
+                        line(unit, item, positions)));
             }
 
-            List<TypeDeclaration> types = new ArrayList<>();
-            Deque<String> parents = new ArrayDeque<>();
+            List<TypeBuilder> builders = new ArrayList<>();
+            Deque<TypeBuilder> parents = new ArrayDeque<>();
             new TreePathScanner<Void, Void>() {
                 @Override
                 public Void visitClass(ClassTree node, Void unused) {
                     String simpleName = node.getSimpleName().toString();
                     if (simpleName.isBlank()) return super.visitClass(node, unused);
-                    String parent = parents.peekLast();
-                    String qualifiedName = parent != null ? parent + "." + simpleName
+                    TypeBuilder parent = parents.peekLast();
+                    String qualifiedName = parent != null ? parent.qualifiedName + "." + simpleName
                             : packageName.isBlank() ? simpleName : packageName + "." + simpleName;
-                    types.add(new TypeDeclaration(qualifiedName, simpleName,
+                    TypeBuilder current = new TypeBuilder(qualifiedName, simpleName,
                             node.getKind().name().toLowerCase(Locale.ROOT),
-                            node.getModifiers().getFlags().stream().map(f -> f.name().toLowerCase(Locale.ROOT)).sorted().toList(),
+                            node.getModifiers().getFlags().stream()
+                                    .map(f -> f.name().toLowerCase(Locale.ROOT)).sorted().toList(),
                             node.getExtendsClause() == null ? null : node.getExtendsClause().toString(),
                             node.getImplementsClause().stream().map(Tree::toString).toList(),
-                            line(unit, node)));
-                    parents.addLast(qualifiedName);
+                            line(unit, node, positions));
+                    builders.add(current);
+                    parents.addLast(current);
                     try {
                         return super.visitClass(node, unused);
                     } finally {
@@ -76,35 +79,62 @@ public final class JavaSourceAnalyzer {
 
                 @Override
                 public Void visitMethod(MethodTree node, Void unused) {
-                    String owner = parents.peekLast();
+                    TypeBuilder owner = parents.peekLast();
                     if (owner != null) {
                         String parameters = node.getParameters().stream()
                                 .map(parameter -> parameter.getType() == null ? "?" : parameter.getType().toString())
-                                .collect(Collectors.joining(","));
+                                .collect(java.util.stream.Collectors.joining(","));
                         String returnType = node.getReturnType() == null ? "<constructor>" : node.getReturnType().toString();
-                        types.stream().filter(type -> type.qualifiedName().equals(owner)).findFirst()
-                                .ifPresent(type -> type.addMethod(new MethodDeclaration(
-                                        node.getName().toString(), parameters, returnType, line(unit, node))));
+                        owner.methods.add(new MethodDeclaration(node.getName().toString(), parameters,
+                                returnType, line(unit, node, positions)));
                     }
                     return super.visitMethod(node, unused);
                 }
             }.scan(unit, null);
 
-            files.add(new SourceFile(sourceName, packageName, imports, types));
+            files.add(new SourceFile(sourceName, packageName, imports,
+                    builders.stream().map(TypeBuilder::build).toList()));
         }
 
         List<ParseDiagnostic> diagnostics = collector.getDiagnostics().stream()
-                .map(d -> new ParseDiagnostic(d.getKind().name(),
-                        d.getCode(), d.getMessage(Locale.ROOT),
+                .map(d -> new ParseDiagnostic(d.getKind().name(), d.getCode(), d.getMessage(Locale.ROOT),
                         d.getLineNumber(), d.getColumnNumber()))
                 .toList();
         return new AnalysisResult(files, diagnostics);
     }
 
-    private static long line(CompilationUnitTree unit, Tree tree) {
-        long position = unit.getLineMap().getLineNumber(
-                unit.getSourceFile() == null ? 0 : 0);
-        return position < 1 ? 1 : position;
+    private static long line(CompilationUnitTree unit, Tree tree, SourcePositions positions) {
+        long position = positions.getStartPosition(unit, tree);
+        if (position < 0 || unit.getLineMap() == null) return 1;
+        long line = unit.getLineMap().getLineNumber(position);
+        return line < 1 ? 1 : line;
+    }
+
+    private static final class TypeBuilder {
+        private final String qualifiedName;
+        private final String name;
+        private final String kind;
+        private final List<String> modifiers;
+        private final String extendsType;
+        private final List<String> implementsTypes;
+        private final long line;
+        private final List<MethodDeclaration> methods = new ArrayList<>();
+
+        private TypeBuilder(String qualifiedName, String name, String kind, List<String> modifiers,
+                            String extendsType, List<String> implementsTypes, long line) {
+            this.qualifiedName = qualifiedName;
+            this.name = name;
+            this.kind = kind;
+            this.modifiers = modifiers;
+            this.extendsType = extendsType;
+            this.implementsTypes = implementsTypes;
+            this.line = line;
+        }
+
+        private TypeDeclaration build() {
+            return new TypeDeclaration(qualifiedName, name, kind, modifiers, extendsType,
+                    implementsTypes, line, methods);
+        }
     }
 
     private static final class StringSource extends SimpleJavaFileObject {
@@ -150,17 +180,10 @@ public final class JavaSourceAnalyzer {
                                   List<String> modifiers, String extendsType,
                                   List<String> implementsTypes, long line,
                                   List<MethodDeclaration> methods) {
-        public TypeDeclaration(String qualifiedName, String name, String kind, List<String> modifiers,
-                               String extendsType, List<String> implementsTypes, long line) {
-            this(qualifiedName, name, kind, modifiers, extendsType, implementsTypes, line, new ArrayList<>());
-        }
         public TypeDeclaration {
             modifiers = List.copyOf(modifiers);
             implementsTypes = List.copyOf(implementsTypes);
-            methods = new ArrayList<>(methods);
-        }
-        private void addMethod(MethodDeclaration method) {
-            methods.add(method);
+            methods = List.copyOf(methods);
         }
     }
 
