@@ -290,6 +290,8 @@ public final class AegisCli {
     public record JavaImportMigrationOutput(JavaImportMigrationEngine.MigrationResult migration, boolean written) {}
     public record DdlMigrationOutput(SqlDdlParser.ParseResult sourceAnalysis,
                                      OraclePostgresDdlPlanner.MigrationPlan migrationPlan) {}
+    public record StoredProjectOutput(String projectId, String projectName,
+                                      java.time.Instant analyzedAt, String persistenceDatabase) {}
 
     private static boolean isHelp(String arg) {
         return "-h".equals(arg) || "--help".equals(arg) || "help".equals(arg);
