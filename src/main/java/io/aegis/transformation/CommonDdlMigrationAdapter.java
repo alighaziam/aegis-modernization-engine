@@ -42,7 +42,7 @@ public final class CommonDdlMigrationAdapter {
             boolean complete = true;
             for (SqlDdlParser.Column column : table.columns()) {
                 String name = quote(column.name(), target);
-                String type = mapType(column, target);
+                String type = mapType(column, DatabaseDialect.from(parsed.vendor()), target);
                 if (name == null || type == null) {
                     complete = false;
                     diagnostics.add(new DatabaseMigrationPlanner.Diagnostic(
@@ -59,7 +59,7 @@ public final class CommonDdlMigrationAdapter {
                 }
             }
             for (SqlDdlParser.Constraint constraint : table.constraints()) {
-                String mapped = mapConstraint(constraint, target, diagnostics);
+                String mapped = mapConstraint(constraint, target, schema, diagnostics);
                 if (mapped != null) definitions.add("  " + mapped);
             }
             if (!complete || definitions.isEmpty()) {
@@ -111,7 +111,7 @@ public final class CommonDdlMigrationAdapter {
         };
     }
 
-    private static String mapType(SqlDdlParser.Column column, DatabaseDialect target) {
+    private static String mapType(SqlDdlParser.Column column, DatabaseDialect source, DatabaseDialect target) {
         String raw = column.dataType() == null ? ""
                 : column.dataType().trim().toUpperCase(Locale.ROOT).replaceAll("\\s+", " ");
         int length = column.length() == null ? 0 : column.length();
@@ -181,7 +181,17 @@ public final class CommonDdlMigrationAdapter {
                 default -> null;
             };
         }
-        if (raw.equals("DATE")) return "DATE";
+        if (raw.equals("DATE")) {
+            if (source != DatabaseDialect.ORACLE) return "DATE";
+            return switch (target) {
+                case ORACLE -> "DATE";
+                case POSTGRESQL -> "TIMESTAMP(0) WITHOUT TIME ZONE";
+                case MYSQL, MARIADB -> "DATETIME(0)";
+                case SQLSERVER -> "DATETIME2(0)";
+                case DB2 -> "TIMESTAMP(0)";
+                default -> null;
+            };
+        }
         if (raw.startsWith("TIMESTAMP") || raw.equals("DATETIME") || raw.equals("DATETIME2")) {
             int precision = column.length() == null ? 6 : Math.min(Math.max(length, 0), 7);
             return switch (target) {
@@ -239,7 +249,7 @@ public final class CommonDdlMigrationAdapter {
             case "PRIMARY_KEY" -> prefix + "PRIMARY KEY (" + String.join(", ", columns) + ")";
             case "UNIQUE" -> prefix + "UNIQUE (" + String.join(", ", columns) + ")";
             case "FOREIGN_KEY" -> {
-                String referenced = qualified(constraint.referencedTable(), target);
+                String referencedTable = qualified(constraint.referencedTable(), target);\n                String referenced = referencedTable == null ? null : quote(schema, target) + "." + referencedTable;
                 List<String> referencedColumns = quoteAll(constraint.referencedColumns(), target);
                 if (referenced == null || referencedColumns.isEmpty()) {
                     diagnostics.add(new DatabaseMigrationPlanner.Diagnostic(
