@@ -43,7 +43,7 @@ class JavaImportMigrationEngineTest {
     }
 
     @Test void preservesImportFormattingAndComments() throws Exception {
-        String source = "import   /* keep javax.persistence.Entity */ javax.persistence.Entity;\\nclass A {}";
+        String source = "import   /* keep javax.persistence.Entity */ javax.persistence.Entity;\nclass A {}";
         var result = engine.migrate(source, "A.java");
         assertTrue(result.safeToReview());
         assertTrue(result.transformedSource().contains(
