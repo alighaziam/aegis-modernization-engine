@@ -26,6 +26,37 @@ Exact framework/runtime versions must be selected through a maintained compatibi
 7. Architecture and migration planning: explainable decisions, risk, sequencing, compatibility and rollback.
 8. Controlled transformations and validation: generated changes are reviewable, repeatable and tested.
 
+## Current implementation
+
+The repository now contains an initial executable Java implementation:
+
+- Canonical UPKM domain records in `src/main/java/io/aegis/domain`.
+- Strict JSON intake validation and content-addressed artifact registration in `src/main/java/io/aegis/intake`.
+- An offline SQL DDL parser for a deliberately limited Oracle/PostgreSQL subset in `src/main/java/io/aegis/parser/sql`.
+- Append-only evidence and conflict journals in `src/main/java/io/aegis/evidence`.
+- A command-line entry point for intake and DDL parsing in `src/main/java/io/aegis/cli`.
+
+Unsupported SQL syntax is surfaced as a diagnostic requiring review. The parser is not a complete Oracle or PostgreSQL grammar and must not be treated as one.
+
+## Build and run
+
+Requirements: JDK 25 and Gradle 9.2.1 or newer compatible with Java 25.
+
+```bash
+gradle clean test
+gradle installDist
+
+# Validate and register artifacts described by an intake JSON file
+build/install/aegis-modernization-engine/bin/aegis-modernization-engine intake ./project-intake.json ./aegis-store
+
+# Parse the supported SQL DDL subset and print a JSON result
+build/install/aegis-modernization-engine/bin/aegis-modernization-engine parse-ddl ./schema.sql postgresql
+```
+
+Exit codes: `0` means completed without diagnostics/warnings, `1` means execution or validation error, `2` means invalid command usage, and `3` means processing completed with review diagnostics or intake warnings.
+
+A GitHub Actions workflow runs Java 25 compilation, tests, and distribution assembly on pushes and pull requests to `main`.
+
 ## Repository map
 
 - `docs/Aegis-Input-Specification.md` — input formats, ingestion behavior, UPKM and evidence contract.
@@ -49,7 +80,7 @@ Exact framework/runtime versions must be selected through a maintained compatibi
 
 ## Status
 
-This repository currently establishes the product contract and initial architecture. Implementation milestones and supported format/version matrices will be added as they are verified. No runtime implementation is claimed by these documents.
+The project has an initial runtime foundation, not a production-ready modernization engine. Intake, evidence journaling, a canonical model, a limited SQL parser and CLI are implemented. Language/framework discovery, full AST analysis, logical data-model inference, architecture decision automation, migration planning, transformation engines, rollback generation and broad integration tests remain future milestones. Supported syntax and technology/version matrices must be expanded only with executable tests.
 
 ## License
 
