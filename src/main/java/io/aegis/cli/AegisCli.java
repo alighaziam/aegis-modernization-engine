@@ -2,8 +2,12 @@ package io.aegis.cli;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.aegis.domain.ProjectKnowledgeModel;
 import io.aegis.intake.IntakeService;
+import io.aegis.intake.IntakeToKnowledgeModelMapper;
 import io.aegis.parser.sql.SqlDdlParser;
+import io.aegis.parser.sql.SqlDdlToKnowledgeMapper;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -12,6 +16,7 @@ import java.nio.file.Path;
 /** Command-line entry point for deterministic, offline Aegis operations. */
 public final class AegisCli {
     private static final ObjectMapper JSON = new ObjectMapper()
+            .registerModule(new JavaTimeModule())
             .enable(SerializationFeature.INDENT_OUTPUT);
 
     private AegisCli() {}
@@ -31,6 +36,7 @@ public final class AegisCli {
             return switch (args[0]) {
                 case "intake" -> runIntake(args);
                 case "parse-ddl" -> runParseDdl(args);
+                case "map-ddl" -> runMapDdl(args);
                 default -> {
                     System.err.println("Unknown command: " + args[0]);
                     usage();
@@ -66,11 +72,27 @@ public final class AegisCli {
         return result.diagnostics().isEmpty() ? 0 : 3;
     }
 
+    private static int runMapDdl(String[] args) throws Exception {
+        if (args.length < 6 || args.length > 7) {
+            System.err.println("Usage: aegis-modernization-engine map-ddl <intake.json> <schema.sql> <oracle|postgresql> <store-id> <schema-name> [db-version]");
+            return 2;
+        }
+        IntakeService.IntakeRequest request = IntakeService.readRequest(Path.of(args[1]));
+        ProjectKnowledgeModel project = new IntakeToKnowledgeModelMapper().map(request);
+        Path sqlFile = Path.of(args[2]);
+        String sql = Files.readString(sqlFile, StandardCharsets.UTF_8);
+        SqlDdlParser.ParseResult parsed = new SqlDdlParser().parse(sql, sqlFile.getFileName().toString(), args[3]);
+        ProjectKnowledgeModel mapped = new SqlDdlToKnowledgeMapper()
+                .merge(project, parsed, args[4], args[5], args.length == 7 ? args[6] : null);
+        System.out.println(JSON.writeValueAsString(new DdlAnalysisOutput(mapped, parsed)));
+        return parsed.diagnostics().isEmpty() ? 0 : 3;
+    }
+
     private static boolean isHelp(String arg) {
         return "-h".equals(arg) || "--help".equals(arg) || "help".equals(arg);
     }
 
-    private static void usage() {
+    public record DdlAnalysisOutput(ProjectKnowledgeModel knowledgeModel, SqlDdlParser.ParseResult ddl) {}\n\n    private static void usage() {
         System.out.println("""
                 Aegis Modernization Engine (offline, deterministic)
 
