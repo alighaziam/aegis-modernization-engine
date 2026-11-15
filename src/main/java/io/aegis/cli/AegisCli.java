@@ -199,6 +199,14 @@ public final class AegisCli {
                       Build a project UPKM and merge the parsed physical database schema.
                   analyze-java <source.java> <intake.json>
                       Extract Java declarations and imports into the project UPKM.
+                  detect-tech <pom.xml|build.gradle|source.java>...
+                      Detect supported Java, Spring and library markers and versions.
+                  analyze-openapi <openapi.yaml|json> <intake.json>
+                      Parse OpenAPI endpoints and schemas and merge endpoints into UPKM.
+                  infer-model <intake.json> [source.java...]
+                      Infer logical entities and candidate business rules; review is required.
+                  plan <intake.json> <java-version> <framework> <framework-version> <database> <frontend> <deployment>
+                      Generate an explainable target architecture and migration sequence.
 
                 Exit codes:
                   0  completed without review warnings
