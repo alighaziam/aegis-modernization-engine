@@ -25,6 +25,24 @@ public final class ProjectAnalysisOrchestrator {
 
         OpenApiProjectScanner.ScanReport openApi = new OpenApiProjectScanner().scan(projectRoot, model);
         model = openApi.knowledgeModel();
+        SpringApiAnalyzer.Analysis springApi = new SpringApiAnalyzer().analyzeProject(projectRoot);
+        List<ProjectKnowledgeModel.ApiEndpoint> apiEndpoints = new ArrayList<>(model.apiEndpoints());
+        for (SpringApiAnalyzer.EndpointMapping endpoint : springApi.endpoints()) {
+            boolean alreadyKnown = apiEndpoints.stream().anyMatch(existing ->
+                    existing.method().equalsIgnoreCase(endpoint.httpMethod())
+                            && existing.path().equals(endpoint.path()));
+            if (!alreadyKnown) {
+                apiEndpoints.add(new ProjectKnowledgeModel.ApiEndpoint(
+                        "spring:" + endpoint.httpMethod() + " " + endpoint.path() + ":"
+                                + endpoint.controller() + "#" + endpoint.methodName(),
+                        endpoint.httpMethod(), endpoint.path(), endpoint.methodName(),
+                        endpoint.sourceLocator() + ":" + endpoint.line(),
+                        ProjectKnowledgeModel.FactStatus.OBSERVED));
+            }
+        }
+        model = new ProjectKnowledgeModel(model.project(), model.artifacts(), model.technologies(),
+                model.components(), model.dataStores(), model.logicalEntities(), apiEndpoints,
+                model.dependencies(), model.businessRules(), model.analyzedAt(), model.modelVersion());
 
         DependencyGraphAnalyzer.GraphReport dependencyGraph = new DependencyGraphAnalyzer().analyze(model);
         DataLineageAnalyzer.LineageReport lineage = new DataLineageAnalyzer().analyze(model);
@@ -36,6 +54,7 @@ public final class ProjectAnalysisOrchestrator {
         List<String> diagnostics = new ArrayList<>(source.diagnostics());
         if (database != null) diagnostics.addAll(database.diagnostics());
         diagnostics.addAll(openApi.diagnostics());
+        diagnostics.addAll(springApi.diagnostics());
         diagnostics.addAll(lineage.diagnostics());
         diagnostics.addAll(jpaMappings.diagnostics());
         diagnostics.addAll(queryLineage.diagnostics());
@@ -54,9 +73,10 @@ public final class ProjectAnalysisOrchestrator {
                 jpaReconciliation.counts().matched(), jpaReconciliation.counts().mismatched(),
                 jpaReconciliation.counts().notChecked(),
                 queryLineage.queriesAnalyzed(), queryLineage.edges().size(), queryLineage.diagnostics().size(),
+                springApi.filesScanned(), springApi.endpoints().size(),
                 model.apiEndpoints().size(), model.logicalEntities().size(),
                 diagnostics);
-        return new AnalysisResult(model, summary, source, database, openApi, dependencyGraph, lineage, jpaMappings, jpaReconciliation, queryLineage);
+        return new AnalysisResult(model, summary, source, database, openApi, dependencyGraph, lineage, jpaMappings, jpaReconciliation, queryLineage, springApi);
     }
 
     public record DatabaseProfile(String dialect, String dataStoreId, String schemaName, String databaseVersion) {
@@ -76,6 +96,7 @@ public final class ProjectAnalysisOrchestrator {
                                   int foreignKeyLineageEdges, int jpaEntities, int jpaRelationships,
                                   int jpaSchemaMatches, int jpaSchemaMismatches, int jpaSchemaNotChecked,
                                   int sqlQueriesAnalyzed, int queryLineageEdges, int queryLineageDiagnostics,
+                                  int springControllerFiles, int springEndpointsDiscovered,
                                   int apiEndpoints, int logicalEntities, List<String> diagnostics) {
         public AnalysisSummary { diagnostics = List.copyOf(diagnostics); }
     }
@@ -88,5 +109,6 @@ public final class ProjectAnalysisOrchestrator {
                                  DataLineageAnalyzer.LineageReport lineage,
                                  JpaMappingAnalyzer.MappingReport jpaMappings,
                                  JpaSchemaReconciliationAnalyzer.ReconciliationReport jpaReconciliation,
-                                 SqlQueryLineageAnalyzer.LineageReport queryLineage) {}
+                                 SqlQueryLineageAnalyzer.LineageReport queryLineage,
+                                 SpringApiAnalyzer.Analysis springApi) {}
 }
