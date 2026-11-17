@@ -238,8 +238,23 @@ class AegisCliTest {
         Path root = tempDir.resolve("workspace-project");
         Files.createDirectories(root.resolve("src/main/java/com/acme"));
         Files.createDirectories(root.resolve("db"));
-        Files.writeString(root.resolve("src/main/java/com/acme/Customer.java"),
-                "package com.acme; public class Customer {}");
+        Files.writeString(root.resolve("src/main/java/com/acme/Customer.java"), """
+                package com.acme;
+                import jakarta.persistence.Entity;
+                import jakarta.persistence.Table;
+                @Entity @Table(name = "CUSTOMERS")
+                public class Customer {}
+                """);
+        Files.writeString(root.resolve("src/main/java/com/acme/Order.java"), """
+                package com.acme;
+                import jakarta.persistence.Entity;
+                import jakarta.persistence.ManyToOne;
+                import jakarta.persistence.JoinColumn;
+                @Entity public class Order {
+                    @ManyToOne @JoinColumn(name = "CUSTOMER_ID")
+                    Customer customer;
+                }
+                """);
         Files.writeString(root.resolve("db/schema.sql"),
                 "CREATE TABLE customers (id BIGINT PRIMARY KEY);");
         Files.writeString(root.resolve("openapi.yaml"), """
