@@ -279,7 +279,7 @@ public final class SqlQueryLineageAnalyzer {
             Token token = tokens.get(i);
             if (token.text().equals("(")) depth++;
             else if (token.text().equals(")")) depth--;
-            else if (depth == 0 && CLAUSES.contains(upper(token))) return i;
+            else if (depth == 0 && token.kind() == TokenKind.IDENTIFIER && CLAUSES.contains(upper(token))) return i;
         }
         return tokens.size();
     }
@@ -406,7 +406,7 @@ public final class SqlQueryLineageAnalyzer {
 
     private static String firstKeyword(String sql) {
         List<Token> tokens = tokenize(sql);
-        return tokens.isEmpty() ? "" : upper(tokens.getFirst());
+        return tokens.isEmpty() || tokens.getFirst().kind() != TokenKind.IDENTIFIER ? "" : upper(tokens.getFirst());
     }
     private static boolean hasColumn(ProjectKnowledgeModel.DbTable table, String column) {
         return table.columns().stream().anyMatch(candidate -> same(candidate.name(), column));
