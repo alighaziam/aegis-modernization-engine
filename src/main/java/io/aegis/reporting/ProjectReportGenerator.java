@@ -3,6 +3,7 @@ package io.aegis.reporting;
 import io.aegis.analysis.DependencyGraphAnalyzer;
 import io.aegis.analysis.DataLineageAnalyzer;
 import io.aegis.analysis.JpaMappingAnalyzer;
+import io.aegis.analysis.JpaSchemaReconciliationAnalyzer;
 import io.aegis.domain.ProjectKnowledgeModel;
 
 import java.util.Comparator;
