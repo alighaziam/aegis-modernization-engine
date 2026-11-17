@@ -15,6 +15,7 @@ class DataReconciliationPlannerTest {
         var plan = new DataReconciliationPlanner().create(model, "legacy", "target", null);
 
         assertEquals(2, plan.mappedTables());
+        assertEquals(plan, new DataReconciliationPlanner().create(model, "legacy", "target", null));
         assertTrue(plan.checks().stream().anyMatch(c -> c.type().equals("ROW_COUNT")));
         assertTrue(plan.checks().stream().anyMatch(c -> c.type().equals("DUPLICATE_PRIMARY_KEYS")));
         assertTrue(plan.checks().stream().anyMatch(c -> c.type().equals("NULL_PRIMARY_KEYS")));
