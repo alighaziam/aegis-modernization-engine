@@ -227,6 +227,34 @@ public final class ProjectReportGenerator {
         return out.toString();
     }
 
+    public String generate(ProjectKnowledgeModel model, JpaMappingAnalyzer.MappingReport jpa,
+                           JpaSchemaConsistencyAnalyzer.ConsistencyReport consistency) {
+        StringBuilder out = new StringBuilder(generate(model, jpa));
+        out.append("\n## JPA schema consistency\n\n");
+        if (!consistency.available()) {
+            out.append("_Physical schema consistency is unavailable because no physical database schema was supplied._\n");
+        } else {
+            out.append("| Consistency metric | Count |\n|---|---:|\n");
+            metric(out, "Matched entities", consistency.matchedEntities());
+            metric(out, "Unmatched entities", consistency.unmatchedEntities());
+            metric(out, "Checked explicit columns", consistency.checkedColumns());
+            metric(out, "Matched owning relationships", consistency.matchedRelationships());
+            metric(out, "Errors", (int) consistency.errorCount());
+            metric(out, "Warnings", (int) consistency.warningCount());
+            if (!consistency.findings().isEmpty()) {
+                out.append("\n| Severity | Code | Entity | Physical table | Finding | Source |\n");
+                out.append("|---|---|---|---|---|---|\n");
+                for (var finding : consistency.findings())
+                    out.append("| ").append(cell(finding.severity())).append(" | ")
+                            .append(cell(finding.code())).append(" | ").append(cell(finding.entity())).append(" | ")
+                            .append(cell(finding.physicalTable())).append(" | ").append(cell(finding.message()))
+                            .append(" | ").append(cell(finding.sourceLocator())).append(" |\n");
+            }
+        }
+        out.append("\n");
+        return out.toString();
+    }
+
     private static void row(StringBuilder out, String key, String value) {
         out.append("| ").append(cell(key)).append(" | ").append(cell(value)).append(" |\n");
     }

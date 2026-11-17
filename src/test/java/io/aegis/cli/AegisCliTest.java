@@ -242,21 +242,34 @@ class AegisCliTest {
                 package com.acme;
                 import jakarta.persistence.Entity;
                 import jakarta.persistence.Table;
+                import jakarta.persistence.Id;
+                import jakarta.persistence.Column;
                 @Entity @Table(name = "CUSTOMERS")
-                public class Customer {}
+                public class Customer {
+                    @Id @Column(name = "ID") long id;
+                }
                 """);
         Files.writeString(root.resolve("src/main/java/com/acme/Order.java"), """
                 package com.acme;
                 import jakarta.persistence.Entity;
+                import jakarta.persistence.Table;
+                import jakarta.persistence.Id;
+                import jakarta.persistence.Column;
                 import jakarta.persistence.ManyToOne;
                 import jakarta.persistence.JoinColumn;
-                @Entity public class Order {
-                    @ManyToOne @JoinColumn(name = "CUSTOMER_ID")
+                @Entity @Table(name = "ORDERS") public class Order {
+                    @Id @Column(name = "ID") long id;
+                    @ManyToOne @JoinColumn(name = "CUSTOMER_ID", referencedColumnName = "ID")
                     Customer customer;
                 }
                 """);
-        Files.writeString(root.resolve("db/schema.sql"),
-                "CREATE TABLE customers (id BIGINT PRIMARY KEY);");
+        Files.writeString(root.resolve("db/schema.sql"), """
+                CREATE TABLE customers (id BIGINT PRIMARY KEY);
+                CREATE TABLE orders (
+                    id BIGINT PRIMARY KEY,
+                    customer_id BIGINT NOT NULL REFERENCES customers(id)
+                );
+                """);
         Files.writeString(root.resolve("openapi.yaml"), """
                 openapi: 3.0.3
                 info:
@@ -298,6 +311,10 @@ class AegisCliTest {
         assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("\"jpaRelationships\""));
         assertTrue(Files.readString(output.resolve("architecture.md")).contains("ORM / JPA mappings"));
         assertTrue(Files.readString(output.resolve("architecture.md")).contains("com.acme.Order"));
+        assertTrue(Files.readString(output.resolve("architecture.md")).contains("ORM / JPA mappings"));
+        assertTrue(Files.readString(output.resolve("architecture.md")).contains("JPA schema consistency"));
+        assertTrue(Files.readString(output.resolve("jpa-schema-consistency.json")).contains("matchedRelationships"));
+        assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("\"jpaSchemaErrors\""));
         assertTrue(Files.readString(output.resolve("openapi-inventory.json")).contains("Customer"));
         assertTrue(Files.readString(output.resolve("orm-mappings.json")).contains("com.acme.Order"));
         assertTrue(Files.readString(output.resolve("orm-mappings.json")).contains("CUSTOMER_ID"));

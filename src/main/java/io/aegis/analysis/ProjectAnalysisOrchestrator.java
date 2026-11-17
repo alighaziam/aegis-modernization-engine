@@ -1,8 +1,8 @@
 package io.aegis.analysis;
 
 import io.aegis.discovery.DatabaseProjectScanner;
-import io.aegis.discovery.ProjectSourceScanner;
 import io.aegis.discovery.OpenApiProjectScanner;
+import io.aegis.discovery.ProjectSourceScanner;
 import io.aegis.domain.ProjectKnowledgeModel;
 
 import java.io.IOException;
@@ -10,7 +10,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Coordinates the current deterministic source, DDL, dependency and physical-lineage analysis stages. */
+/** Coordinates the current deterministic source, DDL, API, ORM, graph and lineage stages. */
 public final class ProjectAnalysisOrchestrator {
     public AnalysisResult analyze(Path projectRoot, ProjectKnowledgeModel intakeModel,
                                   DatabaseProfile databaseProfile) throws IOException {
@@ -25,15 +25,20 @@ public final class ProjectAnalysisOrchestrator {
 
         OpenApiProjectScanner.ScanReport openApi = new OpenApiProjectScanner().scan(projectRoot, model);
         model = openApi.knowledgeModel();
+        JpaMappingAnalyzer.MappingReport jpaMappings = new JpaMappingAnalyzer().analyze(projectRoot);
 
         DependencyGraphAnalyzer.GraphReport dependencyGraph = new DependencyGraphAnalyzer().analyze(model);
         DataLineageAnalyzer.LineageReport lineage = new DataLineageAnalyzer().analyze(model);
-        JpaMappingAnalyzer.MappingReport jpaMappings = new JpaMappingAnalyzer().analyze(projectRoot);
+        JpaSchemaConsistencyAnalyzer.ConsistencyReport consistency =
+                new JpaSchemaConsistencyAnalyzer().analyze(model, jpaMappings, lineage);
+
         List<String> diagnostics = new ArrayList<>(source.diagnostics());
         if (database != null) diagnostics.addAll(database.diagnostics());
         diagnostics.addAll(openApi.diagnostics());
-        diagnostics.addAll(lineage.diagnostics());
         diagnostics.addAll(jpaMappings.diagnostics());
+        diagnostics.addAll(lineage.diagnostics());
+        consistency.findings().forEach(finding ->
+                diagnostics.add(finding.code() + ": " + finding.message()));
 
         int tables = model.dataStores().stream().flatMap(store -> store.schemas().stream())
                 .mapToInt(schema -> schema.tables().size()).sum();
@@ -46,9 +51,12 @@ public final class ProjectAnalysisOrchestrator {
                 database == null ? 0 : database.filesDiscovered(), openApi.specificationsAnalyzed(),
                 openApi.schemasDiscovered(), tables, columns, lineage.edges().size(),
                 jpaMappings.entities().size(), jpaMappings.relationships().size(),
-                model.apiEndpoints().size(), model.logicalEntities().size(),
+                consistency.matchedEntities(), consistency.unmatchedEntities(),
+                (int) consistency.errorCount(), (int) consistency.warningCount(),
+                consistency.matchedRelationships(), model.apiEndpoints().size(), model.logicalEntities().size(),
                 diagnostics);
-        return new AnalysisResult(model, summary, source, database, openApi, dependencyGraph, lineage, jpaMappings);
+        return new AnalysisResult(model, summary, source, database, openApi, jpaMappings,
+                dependencyGraph, lineage, consistency);
     }
 
     public record DatabaseProfile(String dialect, String dataStoreId, String schemaName, String databaseVersion) {
@@ -64,9 +72,11 @@ public final class ProjectAnalysisOrchestrator {
                                   int dependencyNodes, int internalDependencyEdges,
                                   int externalDependencyEdges, int dependencyCycles,
                                   int sqlFiles, int openApiSpecifications, int openApiSchemas,
-                                  int physicalTables, int physicalColumns,
-                                  int foreignKeyLineageEdges, int jpaEntities, int jpaRelationships,
-                                  int apiEndpoints, int logicalEntities, List<String> diagnostics) {
+                                  int physicalTables, int physicalColumns, int foreignKeyLineageEdges,
+                                  int jpaEntities, int jpaRelationships, int jpaMatchedEntities,
+                                  int jpaUnmatchedEntities, int jpaSchemaErrors, int jpaSchemaWarnings,
+                                  int jpaMatchedRelationships, int apiEndpoints, int logicalEntities,
+                                  List<String> diagnostics) {
         public AnalysisSummary { diagnostics = List.copyOf(diagnostics); }
     }
 
@@ -74,7 +84,8 @@ public final class ProjectAnalysisOrchestrator {
                                  ProjectSourceScanner.ScanReport source,
                                  DatabaseProjectScanner.ScanReport database,
                                  OpenApiProjectScanner.ScanReport openApi,
+                                 JpaMappingAnalyzer.MappingReport jpaMappings,
                                  DependencyGraphAnalyzer.GraphReport dependencyGraph,
                                  DataLineageAnalyzer.LineageReport lineage,
-                                 JpaMappingAnalyzer.MappingReport jpaMappings) {}
+                                 JpaSchemaConsistencyAnalyzer.ConsistencyReport consistency) {}
 }
