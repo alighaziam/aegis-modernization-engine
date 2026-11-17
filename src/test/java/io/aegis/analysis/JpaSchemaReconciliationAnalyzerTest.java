@@ -21,7 +21,7 @@ class JpaSchemaReconciliationAnalyzerTest {
 
         var report = new JpaSchemaReconciliationAnalyzer().reconcile(model, mappings);
 
-        assertEquals(5, report.counts().matched());
+        assertEquals(6, report.counts().matched());
         assertEquals(0, report.counts().mismatched());
         assertTrue(report.findings().stream().anyMatch(f -> f.code().equals("JPA_RELATIONSHIP_FK_MATCHED")));
     }
@@ -33,7 +33,7 @@ class JpaSchemaReconciliationAnalyzerTest {
                 table("ORDERS", List.of(), List.of()));
         var report = new JpaSchemaReconciliationAnalyzer().reconcile(model, mappings(false));
 
-        assertEquals(2, report.counts().mismatched());
+        assertEquals(3, report.counts().mismatched());
         assertTrue(report.findings().stream().anyMatch(f -> f.code().equals("JPA_COLUMN_NOT_FOUND")));
         assertTrue(report.findings().stream().anyMatch(f -> f.code().equals("JPA_RELATIONSHIP_FK_NOT_FOUND")));
     }
@@ -100,4 +100,46 @@ class JpaSchemaReconciliationAnalyzerTest {
     private static ProjectKnowledgeModel.DbColumn column(String name) {
         return new ProjectKnowledgeModel.DbColumn(name, "NUMBER", null, null, null, false, null, "schema.sql:2");
     }
+    @Test
+    void checksNullabilityAndSingleColumnUniquenessWhenExplicitlyDeclared() {
+        var customer = new ProjectKnowledgeModel.DbTable("CUSTOMER", List.of(
+                new ProjectKnowledgeModel.DbColumn("ID", "NUMBER", null, null, null, true, null, "schema.sql:2")),
+                List.of(), List.of(), "schema.sql:1");
+        var order = table("ORDERS", List.of(column("CUSTOMER_ID")), List.of());
+        var model = model(customer, order);
+        var mappings = mappings(false);
+        var entity = mappings.entities().getFirst();
+        var customerMapping = new JpaMappingAnalyzer.EntityMapping(entity.qualifiedName(), entity.simpleName(),
+                entity.packageName(), entity.imports(), entity.tableName(), entity.schema(),
+                List.of(new JpaMappingAnalyzer.ColumnMapping("id", "ID", null, "false", "true")),
+                entity.relationships(), entity.sourceLocator(), entity.status());
+        var revised = new JpaMappingAnalyzer.MappingReport(List.of(customerMapping, mappings.entities().get(1)),
+                mappings.relationships(), List.of(), List.of(), 2, 100);
+
+        var report = new JpaSchemaReconciliationAnalyzer().reconcile(model, revised);
+
+        assertTrue(report.findings().stream().anyMatch(f -> f.code().equals("JPA_COLUMN_NULLABILITY_MISMATCH")));
+        assertTrue(report.findings().stream().anyMatch(f -> f.code().equals("JPA_COLUMN_UNIQUENESS_MISMATCH")));
+    }
+
+    @Test
+    void treatsImplicitTableNamesAndUnsupportedRelationshipKindsAsNotChecked() {
+        var model = model(table("CUSTOMER", List.of(column("ID")), List.of()),
+                table("ORDERS", List.of(column("CUSTOMER_ID")), List.of()));
+        var implicit = new JpaMappingAnalyzer.EntityMapping("com.acme.Order", "Order", "com.acme", List.of(),
+                null, null, List.of(), List.of(), "Order.java", JpaMappingAnalyzer.FactStatus.OBSERVED);
+        var mappingReport = new JpaMappingAnalyzer.MappingReport(List.of(implicit), List.of(
+                new JpaMappingAnalyzer.RelationshipEdge("com.acme.Order", "com.acme.Customer",
+                        "customers", "ManyToMany", List.of(new JpaMappingAnalyzer.ColumnMapping(
+                        "customers", "CUSTOMER_ID", "ID", null, null)), "Order.java", JpaMappingAnalyzer.FactStatus.OBSERVED)),
+                List.of(), List.of(), 1, 10);
+
+        var report = new JpaSchemaReconciliationAnalyzer().reconcile(model, mappingReport);
+
+        assertTrue(report.findings().stream().anyMatch(f -> f.code().equals("JPA_ENTITY_TABLE_NOT_EXPLICIT")
+                && f.status() == JpaSchemaReconciliationAnalyzer.Status.NOT_CHECKED));
+        assertTrue(report.findings().stream().anyMatch(f -> f.code().equals("JPA_RELATIONSHIP_KIND_NOT_CHECKED")
+                && f.status() == JpaSchemaReconciliationAnalyzer.Status.NOT_CHECKED));
+    }
+
 }
