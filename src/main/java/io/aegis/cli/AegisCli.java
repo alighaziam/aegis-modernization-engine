@@ -16,6 +16,7 @@ import io.aegis.analysis.LogicalModelInferer;
 import io.aegis.discovery.TechnologyDetector;
 import io.aegis.discovery.ProjectSourceScanner;
 import io.aegis.discovery.DatabaseProjectScanner;
+import io.aegis.discovery.DatabaseMetadataDiscovery;
 import io.aegis.reporting.ProjectReportGenerator;
 import io.aegis.reporting.MigrationPlanReportGenerator;
 import io.aegis.parser.openapi.OpenApiYamlAnalyzer;
