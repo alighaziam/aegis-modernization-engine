@@ -333,4 +333,31 @@ class AegisCliTest {
         assertEquals(2, AegisCli.run(new String[]{"analyze-jpa"}));
     }
 
+    @Test
+    void reconcileJpaCommandComparesSerializedUpkmAndOrmMappings() throws Exception {
+        Path model = tempDir.resolve("reconcile-upkm.json");
+        Files.writeString(model, """
+                {
+                  "project": {"id": "demo", "name": "Demo", "description": null, "businessDomain": null},
+                  "artifacts": [], "technologies": [], "components": [], "dataStores": [],
+                  "logicalEntities": [], "apiEndpoints": [], "dependencies": [], "businessRules": [],
+                  "analyzedAt": "2026-11-17T00:00:00Z", "modelVersion": "1.0"
+                }
+                """);
+        Path mappings = tempDir.resolve("orm-mappings.json");
+        Files.writeString(mappings, """
+                {
+                  "entities": [], "relationships": [], "diagnostics": [], "limitations": [],
+                  "filesScanned": 0, "bytesRead": 0
+                }
+                """);
+
+        assertEquals(0, AegisCli.run(new String[]{"reconcile-jpa", model.toString(), mappings.toString()}));
+    }
+
+    @Test
+    void reconcileJpaCommandValidatesArguments() {
+        assertEquals(2, AegisCli.run(new String[]{"reconcile-jpa"}));
+    }
+
 }
