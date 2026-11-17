@@ -110,14 +110,15 @@ public final class SpringApiAnalyzer {
         if (source == null || sourceName == null) throw new IllegalArgumentException("source and sourceName are required");
         var compiler = ToolProvider.getSystemJavaCompiler();
         if (compiler == null) throw new IllegalStateException("A JDK compiler is required");
-        var diagnostics = new DiagnosticCollector<JavaFileObject>();
+        var collector = new DiagnosticCollector<JavaFileObject>();
+        List<String> parseDiagnostics = new ArrayList<>();
         JavaFileObject file = new SimpleJavaFileObject(URI.create("string:///Source.java"),
                 JavaFileObject.Kind.SOURCE) {
             @Override public CharSequence getCharContent(boolean ignoreEncodingErrors) { return source; }
         };
         List<EndpointMapping> endpoints = new ArrayList<>();
         try {
-            JavacTask task = (JavacTask) compiler.getTask(null, null, diagnostics,
+            JavacTask task = (JavacTask) compiler.getTask(null, null, collector,
                     List.of("-proc:none", "-Xlint:none"), null, List.of(file));
             CompilationUnitTree unit = task.parse().iterator().next();
             Trees trees = Trees.instance(task);
@@ -139,7 +140,7 @@ public final class SpringApiAnalyzer {
                         if (classMapping != null) {
                             Mapping classRoute = mapping(classMapping, imports, "RequestMapping");
                             if (classRoute.pathUnresolved()) {
-                                diagnostics.add("UNRESOLVED_SPRING_CLASS_PATH: " + sourceName
+                                parseDiagnostics.add("UNRESOLVED_SPRING_CLASS_PATH: " + sourceName
                                         + " class-level RequestMapping path is not a string literal.");
                                 return super.visitClass(node, unused);
                             }
@@ -158,7 +159,7 @@ public final class SpringApiAnalyzer {
                                 Mapping mapping = mapping(annotation, imports, simple);
                                 long line = line(unit, method, positions);
                                 if (mapping.pathUnresolved() || mapping.methodUnresolved()) {
-                                    diagnostics.add("UNRESOLVED_SPRING_METHOD_MAPPING: " + sourceName + ":" + line
+                                    parseDiagnostics.add("UNRESOLVED_SPRING_METHOD_MAPPING: " + sourceName + ":" + line
                                             + " path or HTTP method uses a non-literal expression.");
                                     continue;
                                 }
@@ -180,11 +181,11 @@ public final class SpringApiAnalyzer {
         } catch (IOException failure) {
             throw new IllegalArgumentException("Could not parse Java source " + sourceName, failure);
         }
-        for (var diagnostic : diagnostics.getDiagnostics()) {
+        for (var diagnostic : collector.getDiagnostics()) {
             if (diagnostic.getKind() == javax.tools.Diagnostic.Kind.ERROR)
-                return new ParseResult(endpoints, List.of("JAVA_PARSE_ERROR: " + sourceName + ": " + diagnostic.getMessage(Locale.ROOT)));
+                parseDiagnostics.add("JAVA_PARSE_ERROR: " + sourceName + ": " + diagnostic.getMessage(Locale.ROOT));
         }
-        return new ParseResult(endpoints, List.of());
+        return new ParseResult(endpoints, parseDiagnostics);
     }
 
     private static boolean isController(List<? extends AnnotationTree> annotations, Set<String> imports) {
