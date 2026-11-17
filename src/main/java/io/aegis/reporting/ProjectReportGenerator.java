@@ -4,6 +4,7 @@ import io.aegis.analysis.DependencyGraphAnalyzer;
 import io.aegis.analysis.DataLineageAnalyzer;
 import io.aegis.analysis.JpaMappingAnalyzer;
 import io.aegis.analysis.JpaSchemaReconciliationAnalyzer;
+import io.aegis.analysis.SqlQueryLineageAnalyzer;
 import io.aegis.domain.ProjectKnowledgeModel;
 
 import java.util.Comparator;
@@ -23,6 +24,12 @@ public final class ProjectReportGenerator {
 
     public String generate(ProjectKnowledgeModel model, JpaMappingAnalyzer.MappingReport jpaMappings,
                            JpaSchemaReconciliationAnalyzer.ReconciliationReport reconciliation) {
+        return generate(model, jpaMappings, reconciliation, null);
+    }
+
+    public String generate(ProjectKnowledgeModel model, JpaMappingAnalyzer.MappingReport jpaMappings,
+                           JpaSchemaReconciliationAnalyzer.ReconciliationReport reconciliation,
+                           SqlQueryLineageAnalyzer.LineageReport queryLineage) {
         Objects.requireNonNull(model, "model");
         StringBuilder out = new StringBuilder();
         var project = model.project();
@@ -62,6 +69,11 @@ public final class ProjectReportGenerator {
             metric(out, "JPA schema matches", reconciliation.counts().matched());
             metric(out, "JPA schema mismatches", reconciliation.counts().mismatched());
             metric(out, "JPA schema not checked", reconciliation.counts().notChecked());
+        }
+        if (queryLineage != null) {
+            metric(out, "SQL queries analyzed", queryLineage.queriesAnalyzed());
+            metric(out, "SQL query lineage edges", queryLineage.edges().size());
+            metric(out, "SQL query lineage diagnostics", queryLineage.diagnostics().size());
         }
         metric(out, "Logical entities", model.logicalEntities().size());
         metric(out, "API endpoints", model.apiEndpoints().size());
@@ -202,6 +214,23 @@ public final class ProjectReportGenerator {
                         .append(cell(finding.severity().name())).append(" | ")
                         .append(cell(finding.entity())).append(" | ").append(cell(finding.table())).append(" | ")
                         .append(cell(finding.field())).append(" | ").append(cell(finding.message())).append(" |\n");
+        }
+        out.append("\n");
+        out.append("## SQL query column lineage\n\n");
+        if (queryLineage == null || queryLineage.edges().isEmpty())
+            out.append("_No supported SQL SELECT column lineage was discovered._\n");
+        else {
+            out.append("| Source table | Source column | Output column | Alias | Query source | Line |\n|---|---|---|---|---|---:|\n");
+            for (var edge : queryLineage.edges())
+                out.append("| ").append(cell(edge.sourceTable())).append(" | ")
+                        .append(cell(edge.sourceColumn())).append(" | ").append(cell(edge.outputColumn())).append(" | ")
+                        .append(cell(edge.tableAlias())).append(" | ").append(cell(edge.querySource())).append(" | ")
+                        .append(edge.line()).append(" |\n");
+        }
+        if (queryLineage != null && !queryLineage.diagnostics().isEmpty()) {
+            out.append("\nSQL query lineage diagnostics:\n\n");
+            for (String diagnostic : queryLineage.diagnostics())
+                out.append("- ").append(cell(diagnostic)).append("\n");
         }
         out.append("\n");
         out.append("## Logical model\n\n");
