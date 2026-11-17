@@ -143,4 +143,31 @@ class AegisCliTest {
                 "analyze-project", root.toString(), intake.toString()}));
     }
 
+    @Test
+    void analyzeDatabaseCommandScansNestedDdlFiles() throws Exception {
+        Path root = tempDir.resolve("database-root");
+        Files.createDirectories(root.resolve("db"));
+        Files.writeString(root.resolve("db/schema.sql"), "CREATE TABLE sample (id BIGINT PRIMARY KEY);");
+        Path intake = tempDir.resolve("database-scan.json");
+        Files.writeString(intake, """
+                {
+                  "schemaVersion": "1.0",
+                  "project": {"id": "db-demo", "name": "Database Demo"},
+                  "intake": {
+                    "batchId": "db-batch",
+                    "mode": "single",
+                    "artifacts": [{
+                      "artifactId": "ddl",
+                      "category": "database_metadata",
+                      "format": "sql",
+                      "origin": "manual"
+                    }]
+                  }
+                }
+                """);
+        assertEquals(0, AegisCli.run(new String[]{
+                "analyze-database", root.toString(), intake.toString(),
+                "postgresql", "main-db", "public", "16"}));
+    }
+
 }
