@@ -491,4 +491,45 @@ class AegisCliTest {
         assertEquals(2, AegisCli.run(new String[]{"analyze-spring-api"}));
     }
 
+    @Test
+    void planDataReconciliationCommandWritesReviewableSqlArtifacts() throws Exception {
+        Path input = tempDir.resolve("reconciliation-upkm.json");
+        Files.writeString(input, """
+                {
+                  "project": {"id":"reconcile-demo","name":"Reconcile Demo","description":null,"businessDomain":null},
+                  "artifacts": [], "technologies": [], "components": [],
+                  "dataStores": [
+                    {"id":"legacy","vendor":"Oracle","version":"19c","schemas":[
+                      {"name":"HR","tables":[
+                        {"name":"CUSTOMERS","columns":[
+                          {"name":"ID","dataType":"NUMBER","length":null,"precision":18,"scale":0,"nullable":false,"defaultExpression":null,"sourceLocator":"source.sql"}
+                        ],"constraints":[
+                          {"name":"PK_CUSTOMERS","type":"PRIMARY_KEY","columns":["ID"],"referencedTable":null,"referencedColumns":[],"sourceLocator":"source.sql"}
+                        ],"indexes":[],"sourceLocator":"source.sql"}
+                      ]}
+                    ]},
+                    {"id":"target","vendor":"PostgreSQL","version":"16","schemas":[
+                      {"name":"public","tables":[
+                        {"name":"CUSTOMERS","columns":[
+                          {"name":"ID","dataType":"BIGINT","length":null,"precision":19,"scale":0,"nullable":false,"defaultExpression":null,"sourceLocator":"target.sql"}
+                        ],"constraints":[
+                          {"name":"PK_CUSTOMERS","type":"PRIMARY_KEY","columns":["ID"],"referencedTable":null,"referencedColumns":[],"sourceLocator":"target.sql"}
+                        ],"indexes":[],"sourceLocator":"target.sql"}
+                      ]}
+                    ]}
+                  ],
+                  "logicalEntities": [], "apiEndpoints": [], "dependencies": [], "businessRules": [],
+                  "analyzedAt":"2026-11-17T00:00:00Z","modelVersion":"1.0"
+                }
+                """);
+        Path output = tempDir.resolve("reconciliation-output");
+
+        assertEquals(3, AegisCli.run(new String[]{
+                "plan-data-reconciliation", input.toString(), "legacy", "target", "-", output.toString()}));
+        assertTrue(Files.readString(output.resolve("data-reconciliation-plan.json")).contains("ROW_COUNT"));
+        assertTrue(Files.readString(output.resolve("data-reconciliation-plan.md"))
+                .contains("No SQL in this plan has been executed"));
+        assertTrue(Files.readString(output.resolve("data-reconciliation-plan.md")).contains("COLUMN_TYPE_DIFFERENCE"));
+    }
+
 }
