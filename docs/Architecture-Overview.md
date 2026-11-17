@@ -85,6 +85,7 @@ Java 25 and Maven are the current implementation baseline. Oracle JDBC is confin
 - Database credentials are environment/secret-manager inputs and never CLI arguments or committed config.
 - Use least-privilege Oracle schema credentials and TLS/wallet where required.
 - Never execute untrusted project code during static analysis.
+- Transformation targets and rollback backups must be path-confined, symlink-safe, non-overwriting and integrity-checked before restoration.
 - Database schema changes are explicit operator actions; the application does not auto-migrate production schemas.
 
 ## 8. Migration strategy
