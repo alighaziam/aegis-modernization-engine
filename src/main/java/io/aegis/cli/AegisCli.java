@@ -9,6 +9,7 @@ import io.aegis.analysis.ProjectAnalysisOrchestrator;
 import io.aegis.analysis.DataLineageAnalyzer;
 import io.aegis.analysis.JpaMappingAnalyzer;
 import io.aegis.analysis.JpaSchemaReconciliationAnalyzer;
+import io.aegis.analysis.SqlQueryLineageAnalyzer;
 import io.aegis.analysis.JavaBehaviorAnalyzer;
 import io.aegis.analysis.LogicalModelInferer;
 import io.aegis.discovery.TechnologyDetector;
@@ -77,6 +78,7 @@ public final class AegisCli {
                 case "analyze-lineage" -> runAnalyzeLineage(args);
                 case "analyze-jpa" -> runAnalyzeJpa(args);
                 case "reconcile-jpa" -> runReconcileJpa(args);
+                case "analyze-query-lineage" -> runAnalyzeQueryLineage(args);
                 case "render-report" -> runRenderReport(args);
                 case "analyze-openapi" -> runAnalyzeOpenApi(args);
                 case "infer-model" -> runInferModel(args);
@@ -320,6 +322,19 @@ public final class AegisCli {
         return report.counts().mismatched() == 0 && report.counts().ambiguous() == 0 ? 0 : 3;
     }
 
+    private static int runAnalyzeQueryLineage(String[] args) throws Exception {
+        if (args.length != 3) {
+            System.err.println("Usage: aegis-modernization-engine analyze-query-lineage <project-root> <upkm.json>");
+            return 2;
+        }
+        ProjectKnowledgeModel model = JSON.readValue(
+                Files.readString(Path.of(args[2]), StandardCharsets.UTF_8), ProjectKnowledgeModel.class);
+        SqlQueryLineageAnalyzer.LineageReport report =
+                new SqlQueryLineageAnalyzer().analyzeProject(Path.of(args[1]), model);
+        System.out.println(JSON.writeValueAsString(report));
+        return report.diagnostics().isEmpty() ? 0 : 3;
+    }
+
     private static int runRenderReport(String[] args) throws Exception {
         if (args.length != 3) {
             System.err.println("Usage: aegis-modernization-engine render-report <upkm.json> <report.md>");
@@ -385,13 +400,14 @@ public final class AegisCli {
         if (realOutputDir.startsWith(projectRoot) || projectRoot.startsWith(realOutputDir))
             throw new IllegalArgumentException("Output directory must be separate from the source project tree");
         writeWorkspaceFile(realOutputDir.resolve("upkm.json"), JSON.writeValueAsString(result.knowledgeModel()));
-        writeWorkspaceFile(realOutputDir.resolve("architecture.md"), new ProjectReportGenerator().generate(result.knowledgeModel(), result.jpaMappings(), result.jpaReconciliation()));
+        writeWorkspaceFile(realOutputDir.resolve("architecture.md"), new ProjectReportGenerator().generate(result.knowledgeModel(), result.jpaMappings(), result.jpaReconciliation(), result.queryLineage()));
         writeWorkspaceFile(realOutputDir.resolve("analysis-summary.json"), JSON.writeValueAsString(result.summary()));
         writeWorkspaceFile(realOutputDir.resolve("openapi-inventory.json"), JSON.writeValueAsString(
                 new OpenApiInventory(result.openApi().specifications(), result.openApi().schemas(), result.openApi().diagnostics())));
         writeWorkspaceFile(realOutputDir.resolve("orm-mappings.json"), JSON.writeValueAsString(result.jpaMappings()));
         writeWorkspaceFile(realOutputDir.resolve("jpa-schema-reconciliation.json"),
                 JSON.writeValueAsString(result.jpaReconciliation()));
+        writeWorkspaceFile(realOutputDir.resolve("query-lineage.json"), JSON.writeValueAsString(result.queryLineage()));
         System.out.println(JSON.writeValueAsString(result.summary()));
         return result.summary().diagnostics().isEmpty() ? 0 : 3;
     }
