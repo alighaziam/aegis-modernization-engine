@@ -218,4 +218,40 @@ class AegisCliTest {
         assertEquals(0, AegisCli.run(new String[]{"analyze-lineage", input.toString()}));
     }
 
+    @Test
+    void analyzeWorkspaceCommandProducesUpkmSummaryAndMarkdownReport() throws Exception {
+        Path root = tempDir.resolve("workspace-project");
+        Files.createDirectories(root.resolve("src/main/java/com/acme"));
+        Files.createDirectories(root.resolve("db"));
+        Files.writeString(root.resolve("src/main/java/com/acme/Customer.java"),
+                "package com.acme; public class Customer {}");
+        Files.writeString(root.resolve("db/schema.sql"),
+                "CREATE TABLE customers (id BIGINT PRIMARY KEY);");
+        Path intake = tempDir.resolve("workspace-intake.json");
+        Files.writeString(intake, """
+                {
+                  "schemaVersion": "1.0",
+                  "project": {"id": "workspace-demo", "name": "Workspace Demo"},
+                  "intake": {
+                    "batchId": "workspace-batch",
+                    "mode": "single",
+                    "artifacts": [{
+                      "artifactId": "source",
+                      "category": "source_code",
+                      "format": "java",
+                      "origin": "manual"
+                    }]
+                  }
+                }
+                """);
+        Path output = tempDir.resolve("workspace-output");
+
+        assertEquals(0, AegisCli.run(new String[]{
+                "analyze-workspace", root.toString(), intake.toString(), output.toString(),
+                "postgresql", "main-db", "public", "16"}));
+        assertTrue(Files.readString(output.resolve("upkm.json")).contains("Customer"));
+        assertTrue(Files.readString(output.resolve("architecture.md")).contains("# Aegis Modernization Report"));
+        assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("workspace-demo"));
+    }
+
 }
