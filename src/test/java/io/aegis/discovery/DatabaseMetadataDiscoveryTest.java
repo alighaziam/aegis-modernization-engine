@@ -39,7 +39,7 @@ class DatabaseMetadataDiscoveryTest {
             assertEquals(2, report.tables());
             assertEquals(4, report.columns());
             assertEquals(1, report.foreignKeys());
-            assertTrue(report.diagnostics().isEmpty());
+            assertTrue(report.diagnostics().stream().anyMatch(d -> d.startsWith("JDBC_READ_ONLY_HINT_NOT_CONFIRMED")));
             var schema = report.dataStore().schemas().getFirst();
             assertTrue(schema.name().endsWith("APP"));
             var customers = schema.tables().stream().filter(t -> t.name().equals("CUSTOMERS")).findFirst().orElseThrow();

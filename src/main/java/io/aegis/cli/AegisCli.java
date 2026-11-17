@@ -16,6 +16,7 @@ import io.aegis.analysis.LogicalModelInferer;
 import io.aegis.discovery.TechnologyDetector;
 import io.aegis.discovery.ProjectSourceScanner;
 import io.aegis.discovery.DatabaseProjectScanner;
+import io.aegis.discovery.DatabaseMetadataDiscovery;
 import io.aegis.reporting.ProjectReportGenerator;
 import io.aegis.reporting.MigrationPlanReportGenerator;
 import io.aegis.parser.openapi.OpenApiYamlAnalyzer;
@@ -692,7 +693,15 @@ public final class AegisCli {
                   analyze-project <project-root> <intake.json>
                       Scan a complete Java/Maven/Gradle project tree without executing its build.
                   analyze-workspace <project-root> <intake.json> <output-dir> [dialect store-id schema-name [db-version]]
-                      Run the end-to-end deterministic source, optional DDL, graph and lineage pipeline.
+                      Run Java, SQL DDL/query, OpenAPI, Spring, JPA, dependency and lineage analysis.
+                  discover-db-metadata <upkm.json> <data-store-id> <jdbc-url-env> <user-env|-> <password-env|-> <schema-pattern|-> <output-upkm.json>
+                      Import physical tables/columns/keys using JDBC metadata; credentials are environment-only.
+                  analyze-query-lineage <project-root> <upkm.json>
+                      Trace simple SQL SELECT/JOIN projections to source columns without executing SQL.
+                  analyze-spring-api <project-root>
+                      Discover explicit Spring MVC/WebFlux controller routes.
+                  reconcile-jpa <upkm.json> <orm-mappings.json>
+                      Compare explicit JPA mappings with physical schema metadata.
                   analyze-database <project-root> <intake.json> <dialect> <store-id> <schema-name> [db-version]
                       Scan SQL DDL files across a project tree and merge the supported physical schema.
                   analyze-lineage <upkm.json>
