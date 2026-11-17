@@ -12,7 +12,7 @@ class ApiContractConsistencyAnalyzerTest {
     void matchesSpringRoutesToOpenApiMethodsAndNormalizesPathVariableNames() {
         var spring = new SpringApiAnalyzer.Analysis(List.of(
                 new SpringApiAnalyzer.EndpointMapping("com.acme.CustomerController", "get", "GET",
-                        "/customers/{customerId}", "CustomerController.java", 10, "GetMapping")),
+                        "/customers/{customerId}", "CustomerController.java", 10, "GetMapping"),
                 new SpringApiAnalyzer.EndpointMapping("com.acme.CustomerController", "create", "POST",
                         "/customers", "CustomerController.java", 20, "PostMapping")),
                 List.of(), 1, 100, List.of());
