@@ -267,4 +267,34 @@ class AegisCliTest {
         assertTrue(Files.readString(output.resolve("openapi-inventory.json")).contains("Customer"));
     }
 
+    @Test
+    void analyzeJpaCommandExtractsEntityAndRelationshipMappings() throws Exception {
+        Path root = tempDir.resolve("jpa-project");
+        Files.createDirectories(root.resolve("src/main/java/com/acme"));
+        Files.writeString(root.resolve("src/main/java/com/acme/Customer.java"), """
+                package com.acme;
+                import jakarta.persistence.Entity;
+                import jakarta.persistence.Table;
+                @Entity @Table(name = "CUSTOMERS")
+                class Customer {}
+                """);
+        Files.writeString(root.resolve("src/main/java/com/acme/Order.java"), """
+                package com.acme;
+                import jakarta.persistence.Entity;
+                import jakarta.persistence.ManyToOne;
+                import jakarta.persistence.JoinColumn;
+                @Entity class Order {
+                    @ManyToOne @JoinColumn(name = "CUSTOMER_ID")
+                    Customer customer;
+                }
+                """);
+
+        assertEquals(0, AegisCli.run(new String[]{"analyze-jpa", root.toString()}));
+    }
+
+    @Test
+    void analyzeJpaCommandValidatesArguments() {
+        assertEquals(2, AegisCli.run(new String[]{"analyze-jpa"}));
+    }
+
 }
