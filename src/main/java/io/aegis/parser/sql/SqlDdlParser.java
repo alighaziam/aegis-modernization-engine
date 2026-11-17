@@ -74,11 +74,22 @@ public final class SqlDdlParser {
     }
 
     private static boolean isNonDdlStatement(String statement) {
-        String text = statement.replaceFirst("(?s)^\\\\s*(?:(?:--[^\\\\r\\\\n]*(?:\\\\r?\\\\n|$))|(?:/\\\\*.*?\\\\*/))*", "");
-        Matcher first = Pattern.compile("(?is)^([A-Z]+)\\\\b").matcher(text.trim());
+        String text = statement.stripLeading();
+        while (true) {
+            if (text.startsWith("--")) {
+                int newline = text.indexOf('\n');
+                text = newline < 0 ? "" : text.substring(newline + 1).stripLeading();
+            } else if (text.startsWith("/*")) {
+                int close = text.indexOf("*/", 2);
+                if (close < 0) return false;
+                text = text.substring(close + 2).stripLeading();
+            } else break;
+        }
+        Matcher first = Pattern.compile("(?i)^([A-Z]+)\\\\b").matcher(text);
         if (!first.find()) return false;
         return Set.of("SELECT", "WITH", "INSERT", "UPDATE", "DELETE", "MERGE",
-                "CALL", "BEGIN", "COMMIT", "ROLLBACK", "EXPLAIN").contains(first.group(1).toUpperCase(Locale.ROOT));
+                "CALL", "BEGIN", "COMMIT", "ROLLBACK", "EXPLAIN")
+                .contains(first.group(1).toUpperCase(Locale.ROOT));
     }
 
     private Table parseTable(String name, String body, String source, int line,
