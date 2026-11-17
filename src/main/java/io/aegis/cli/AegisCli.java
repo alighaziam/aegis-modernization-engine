@@ -19,8 +19,10 @@ import io.aegis.discovery.DatabaseProjectScanner;
 import io.aegis.discovery.DatabaseMetadataDiscovery;
 import io.aegis.reporting.ProjectReportGenerator;
 import io.aegis.reporting.MigrationPlanReportGenerator;
+import io.aegis.reporting.DataReconciliationReportGenerator;
 import io.aegis.parser.openapi.OpenApiYamlAnalyzer;
 import io.aegis.planning.ModernizationPlanner;
+import io.aegis.planning.DataReconciliationPlanner;
 import io.aegis.intake.IntakeService;
 import io.aegis.intake.IntakeToKnowledgeModelMapper;
 import io.aegis.parser.sql.SqlDdlParser;
@@ -88,6 +90,7 @@ public final class AegisCli {
                 case "infer-model" -> runInferModel(args);
                 case "plan" -> runPlan(args);
                 case "plan-workspace" -> runPlanWorkspace(args);
+                case "plan-data-reconciliation" -> runPlanDataReconciliation(args);
                 case "migrate-java-imports" -> runMigrateJavaImports(args);
                 case "plan-ddl-migration" -> runPlanDdlMigration(args);
                 case "db-check" -> runDbCheck(args);
@@ -609,6 +612,33 @@ public final class AegisCli {
         return result.safeToReview() ? 0 : 3;
     }
 
+    private static int runPlanDataReconciliation(String[] args) throws Exception {
+        if (args.length != 6) {
+            System.err.println("Usage: aegis-modernization-engine plan-data-reconciliation <upkm.json> <source-store-id> <target-store-id> <mapping.json|-> <output-dir>");
+            return 2;
+        }
+        Path input = Path.of(args[1]).toAbsolutePath().normalize();
+        ProjectKnowledgeModel model = JSON.readValue(Files.readString(input, StandardCharsets.UTF_8),
+                ProjectKnowledgeModel.class);
+        DataReconciliationPlanner.MappingDocument mapping = args[4].equals("-") ? null
+                : JSON.readValue(Files.readString(Path.of(args[4]), StandardCharsets.UTF_8),
+                        DataReconciliationPlanner.MappingDocument.class);
+        DataReconciliationPlanner.Plan plan = new DataReconciliationPlanner()
+                .create(model, args[2], args[3], mapping);
+        Path outputDir = Path.of(args[5]).toAbsolutePath().normalize();
+        Files.createDirectories(outputDir);
+        Path jsonOutput = outputDir.resolve("data-reconciliation-plan.json");
+        Path markdownOutput = outputDir.resolve("data-reconciliation-plan.md");
+        if (input.equals(jsonOutput) || input.equals(markdownOutput))
+            throw new IllegalArgumentException("Reconciliation plan output must not overwrite the UPKM input");
+        writeWorkspaceFile(jsonOutput, JSON.writeValueAsString(plan));
+        writeWorkspaceFile(markdownOutput, new DataReconciliationReportGenerator().generate(plan));
+        System.out.println(JSON.writeValueAsString(new DataReconciliationOutput(
+                plan.sourceStoreId(), plan.targetStoreId(), plan.mappedTables(), plan.checks().size(),
+                plan.diagnostics().size(), jsonOutput.toString(), markdownOutput.toString())));
+        return plan.diagnostics().isEmpty() ? 0 : 3;
+    }
+
     private static int runPlanWorkspace(String[] args) throws Exception {
         if (args.length != 9) {
             System.err.println("Usage: aegis-modernization-engine plan-workspace <upkm.json> <java-version> <framework> <framework-version> <database> <frontend|-> <deployment|-> <output-dir>");
@@ -652,7 +682,8 @@ public final class AegisCli {
         return 0;
     }
 
-    public record OpenApiInventory(java.util.List<io.aegis.discovery.OpenApiProjectScanner.SpecificationSummary> specifications,                                    java.util.List<io.aegis.parser.openapi.OpenApiYamlAnalyzer.Schema> schemas,                                    java.util.List<String> diagnostics) {}     public record DatabaseMetadataOutput(String dataStoreId, String vendor, int tables, int columns, int foreignKeys, String output, java.util.List<String> diagnostics) {}
+    public record OpenApiInventory(java.util.List<io.aegis.discovery.OpenApiProjectScanner.SpecificationSummary> specifications,                                    java.util.List<io.aegis.parser.openapi.OpenApiYamlAnalyzer.Schema> schemas,                                    java.util.List<String> diagnostics) {}     public record DataReconciliationOutput(String sourceStoreId, String targetStoreId, int mappedTables, int checks, int diagnostics, String jsonOutput, String markdownOutput) {}
+    public record DatabaseMetadataOutput(String dataStoreId, String vendor, int tables, int columns, int foreignKeys, String output, java.util.List<String> diagnostics) {}
     public record PlanWorkspaceOutput(String projectId, String jsonOutput, String markdownOutput, int phases) {}
     public record ReportOutput(String input, String output, int characters, String format) {}
     public record OpenApiAnalysisOutput(ProjectKnowledgeModel knowledgeModel, OpenApiYamlAnalyzer.Analysis openApi) {}
@@ -717,6 +748,8 @@ public final class AegisCli {
                   plan <intake.json> <java-version> <framework> <framework-version> <database> <frontend> <deployment>
                   plan-workspace <upkm.json> <java-version> <framework> <framework-version> <database> <frontend|-> <deployment|-> <output-dir>
                       Generate a migration plan from the discovered workspace UPKM.
+                  plan-data-reconciliation <upkm.json> <source-store-id> <target-store-id> <mapping.json|-> <output-dir>
+                      Generate read-only SQL validation checks for row counts, keys, required columns and foreign-key orphans.
                       Generate an explainable target architecture and migration sequence.
                   plan-ddl-migration <schema.sql> <source-dialect> <target-dialect> <target-schema>
                       Plan DDL conversion only when a tested source/target adapter exists.

@@ -8,15 +8,14 @@ public enum DatabaseDialect {
 
     public static DatabaseDialect from(String value) {
         if (value == null || value.isBlank()) return UNKNOWN;
-        String normalized = value.trim().toLowerCase(Locale.ROOT).replace('_', '-');
-        return switch (normalized) {
-            case "oracle" -> ORACLE;
-            case "postgres", "postgresql" -> POSTGRESQL;
-            case "mysql" -> MYSQL;
-            case "mariadb" -> MARIADB;
-            case "sqlserver", "sql-server", "mssql" -> SQLSERVER;
-            case "db2" -> DB2;
-            default -> UNKNOWN;
-        };
+        String normalized = value.trim().toLowerCase(Locale.ROOT)
+                .replace('_', '-').replaceAll("[\\s-]+", "");
+        if (normalized.startsWith("oracle")) return ORACLE;
+        if (normalized.equals("postgres") || normalized.startsWith("postgresql")) return POSTGRESQL;
+        if (normalized.startsWith("mariadb")) return MARIADB;
+        if (normalized.startsWith("mysql")) return MYSQL;
+        if (normalized.contains("sqlserver") || normalized.equals("mssql")) return SQLSERVER;
+        if (normalized.startsWith("db2") || normalized.startsWith("ibmdb2")) return DB2;
+        return UNKNOWN;
     }
 }

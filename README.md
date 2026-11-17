@@ -47,6 +47,7 @@ The repository now contains an initial executable Java implementation:
 - A read-only JDBC metadata adapter that discovers tables, columns, primary keys, foreign keys and indexes without executing application SQL; JDBC URL and credentials are supplied through environment variables.
 - A conservative logical-model and business-rule inference pass that derives candidate entities from physical DDL and validation/guard markers from source text; all inferred facts are marked `INFERRED`.
 - A deterministic target architecture and phased migration planner driven by an explicit target profile.
+- A source/target data-reconciliation planner that generates non-executed row-count, primary-key, required-column and foreign-key orphan validation SQL, with explicit mapping support for renamed tables/columns.
 - A guarded text transformation engine with expected-occurrence/hash preconditions, isolated rollback storage, symlink/path protections, non-overwriting SHA-256 backups, atomic writes and all-target rollback preflight.
 - An initial Oracle-backed internal persistence adapter for versioned UPKM snapshots, isolated behind a database-neutral repository interface.
 - A conservative cross-dialect DDL adapter matrix for the supported `CREATE TABLE` / `CREATE INDEX` subset across Oracle, PostgreSQL, MySQL, MariaDB, SQL Server and DB2. Oracle-to-PostgreSQL retains a specialized planner; other pairs use explicit common-type mappings, dialect-specific identifier quoting, and review diagnostics. Unsupported columns cause the affected table to be omitted rather than partially generated. Defaults and vendor-specific semantics are never guessed.
@@ -102,6 +103,9 @@ java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar render-report ./u
 
 # Generate a target migration plan from the discovered UPKM
 java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar plan-workspace ./aegis-output/upkm.json 25 'Spring Boot' 4.0.0 PostgreSQL React Kubernetes ./migration-plan
+
+# Generate read-only source/target data reconciliation SQL from two discovered DataStores
+java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar plan-data-reconciliation ./upkm-with-source-and-target.json legacy-db target-db - ./data-reconciliation
 
 # Verify Aegis' internal Oracle connection (credentials supplied through environment variables)
 java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar db-check
