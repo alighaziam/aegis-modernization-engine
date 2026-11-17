@@ -115,4 +115,32 @@ class AegisCliTest {
         }
     }
 
+    @Test
+    void analyzeProjectCommandScansNestedJavaSources() throws Exception {
+        Path root = tempDir.resolve("project-root");
+        Files.createDirectories(root.resolve("src/main/java/com/acme"));
+        Files.writeString(root.resolve("src/main/java/com/acme/Customer.java"),
+                "package com.acme; public class Customer {}");
+        Path intake = tempDir.resolve("project-scan.json");
+        Files.writeString(intake, """
+                {
+                  "schemaVersion": "1.0",
+                  "project": {"id": "scan-demo", "name": "Scan Demo"},
+                  "intake": {
+                    "batchId": "scan-batch",
+                    "mode": "single",
+                    "artifacts": [{
+                      "artifactId": "source",
+                      "category": "source_code",
+                      "format": "java",
+                      "origin": "manual"
+                    }]
+                  }
+                }
+                """);
+
+        assertEquals(0, AegisCli.run(new String[]{
+                "analyze-project", root.toString(), intake.toString()}));
+    }
+
 }
