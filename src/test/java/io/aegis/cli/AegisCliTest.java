@@ -248,15 +248,22 @@ class AegisCliTest {
         Files.writeString(root.resolve("src/main/java/com/acme/Order.java"), """
                 package com.acme;
                 import jakarta.persistence.Entity;
+                import jakarta.persistence.Table;
                 import jakarta.persistence.ManyToOne;
                 import jakarta.persistence.JoinColumn;
-                @Entity public class Order {
-                    @ManyToOne @JoinColumn(name = "CUSTOMER_ID")
+                @Entity @Table(name = "ORDERS")
+                public class Order {
+                    @ManyToOne @JoinColumn(name = "CUSTOMER_ID", referencedColumnName = "ID")
                     Customer customer;
                 }
                 """);
-        Files.writeString(root.resolve("db/schema.sql"),
-                "CREATE TABLE customers (id BIGINT PRIMARY KEY);");
+        Files.writeString(root.resolve("db/schema.sql"), """
+                CREATE TABLE customers (id BIGINT PRIMARY KEY);
+                CREATE TABLE orders (
+                    customer_id BIGINT,
+                    CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES customers(id)
+                );
+                """);
         Files.writeString(root.resolve("openapi.yaml"), """
                 openapi: 3.0.3
                 info:
@@ -301,6 +308,8 @@ class AegisCliTest {
         assertTrue(Files.readString(output.resolve("openapi-inventory.json")).contains("Customer"));
         assertTrue(Files.readString(output.resolve("orm-mappings.json")).contains("com.acme.Order"));
         assertTrue(Files.readString(output.resolve("orm-mappings.json")).contains("CUSTOMER_ID"));
+        assertTrue(Files.readString(output.resolve("jpa-schema-reconciliation.json")).contains("JPA_ENTITY_TABLE_MATCHED"));
+        assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("\"jpaSchemaMatches\""));
     }
 
     @Test
@@ -331,6 +340,33 @@ class AegisCliTest {
     @Test
     void analyzeJpaCommandValidatesArguments() {
         assertEquals(2, AegisCli.run(new String[]{"analyze-jpa"}));
+    }
+
+    @Test
+    void reconcileJpaCommandComparesSerializedUpkmAndOrmMappings() throws Exception {
+        Path model = tempDir.resolve("reconcile-upkm.json");
+        Files.writeString(model, """
+                {
+                  "project": {"id": "demo", "name": "Demo", "description": null, "businessDomain": null},
+                  "artifacts": [], "technologies": [], "components": [], "dataStores": [],
+                  "logicalEntities": [], "apiEndpoints": [], "dependencies": [], "businessRules": [],
+                  "analyzedAt": "2026-11-17T00:00:00Z", "modelVersion": "1.0"
+                }
+                """);
+        Path mappings = tempDir.resolve("orm-mappings.json");
+        Files.writeString(mappings, """
+                {
+                  "entities": [], "relationships": [], "diagnostics": [], "limitations": [],
+                  "filesScanned": 0, "bytesRead": 0
+                }
+                """);
+
+        assertEquals(0, AegisCli.run(new String[]{"reconcile-jpa", model.toString(), mappings.toString()}));
+    }
+
+    @Test
+    void reconcileJpaCommandValidatesArguments() {
+        assertEquals(2, AegisCli.run(new String[]{"reconcile-jpa"}));
     }
 
 }

@@ -3,6 +3,7 @@ package io.aegis.reporting;
 import io.aegis.analysis.DependencyGraphAnalyzer;
 import io.aegis.analysis.DataLineageAnalyzer;
 import io.aegis.analysis.JpaMappingAnalyzer;
+import io.aegis.analysis.JpaSchemaReconciliationAnalyzer;
 import io.aegis.domain.ProjectKnowledgeModel;
 
 import java.util.Comparator;
@@ -17,6 +18,11 @@ public final class ProjectReportGenerator {
     }
 
     public String generate(ProjectKnowledgeModel model, JpaMappingAnalyzer.MappingReport jpaMappings) {
+        return generate(model, jpaMappings, null);
+    }
+
+    public String generate(ProjectKnowledgeModel model, JpaMappingAnalyzer.MappingReport jpaMappings,
+                           JpaSchemaReconciliationAnalyzer.ReconciliationReport reconciliation) {
         Objects.requireNonNull(model, "model");
         StringBuilder out = new StringBuilder();
         var project = model.project();
@@ -51,6 +57,11 @@ public final class ProjectReportGenerator {
         if (jpaMappings != null) {
             metric(out, "JPA entities", jpaMappings.entities().size());
             metric(out, "JPA relationships", jpaMappings.relationships().size());
+        }
+        if (reconciliation != null) {
+            metric(out, "JPA schema matches", reconciliation.counts().matched());
+            metric(out, "JPA schema mismatches", reconciliation.counts().mismatched());
+            metric(out, "JPA schema not checked", reconciliation.counts().notChecked());
         }
         metric(out, "Logical entities", model.logicalEntities().size());
         metric(out, "API endpoints", model.apiEndpoints().size());
@@ -181,6 +192,18 @@ public final class ProjectReportGenerator {
         }
         out.append("\n");
 
+        out.append("## JPA schema reconciliation\n\n");
+        if (reconciliation == null || reconciliation.findings().isEmpty())
+            out.append("_No JPA-to-physical-schema reconciliation findings were produced._\n");
+        else {
+            out.append("| Status | Severity | Entity | Table | Field | Finding |\n|---|---|---|---|---|---|\n");
+            for (var finding : reconciliation.findings())
+                out.append("| ").append(cell(finding.status().name())).append(" | ")
+                        .append(cell(finding.severity().name())).append(" | ")
+                        .append(cell(finding.entity())).append(" | ").append(cell(finding.table())).append(" | ")
+                        .append(cell(finding.field())).append(" | ").append(cell(finding.message())).append(" |\n");
+        }
+        out.append("\n");
         out.append("## Logical model\n\n");
         if (model.logicalEntities().isEmpty()) out.append("_No logical entities discovered._\n");
         for (var entity : model.logicalEntities().stream()
