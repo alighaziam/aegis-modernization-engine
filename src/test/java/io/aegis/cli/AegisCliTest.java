@@ -309,6 +309,8 @@ class AegisCliTest {
         assertTrue(Files.readString(output.resolve("orm-mappings.json")).contains("com.acme.Order"));
         assertTrue(Files.readString(output.resolve("orm-mappings.json")).contains("CUSTOMER_ID"));
         assertTrue(Files.readString(output.resolve("jpa-schema-reconciliation.json")).contains("JPA_ENTITY_TABLE_MATCHED"));
+        assertTrue(Files.readString(output.resolve("query-lineage.json")).contains("\"queriesAnalyzed\""));
+        assertTrue(Files.readString(output.resolve("architecture.md")).contains("SQL query column lineage"));
         assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("\"jpaSchemaMatches\""));
     }
 
@@ -388,6 +390,57 @@ class AegisCliTest {
                 "PostgreSQL", "React", "Kubernetes", output.toString()}));
         assertTrue(Files.readString(output.resolve("migration-plan.json")).contains("PostgreSQL"));
         assertTrue(Files.readString(output.resolve("migration-plan.md")).contains("Oracle-to-PostgreSQL"));
+    }
+
+    @Test
+    void analyzeQueryLineageCommandExtractsColumnMappingsFromProjectSql() throws Exception {
+        Path root = tempDir.resolve("query-project");
+        Files.createDirectories(root.resolve("sql"));
+        Files.writeString(root.resolve("sql/orders-query.sql"), """
+                SELECT o.id AS order_id, c.name AS customer_name
+                FROM sales.orders o
+                JOIN sales.customers c ON o.customer_id = c.id;
+                """);
+        Path model = tempDir.resolve("query-upkm.json");
+        Files.writeString(model, """
+                {
+                  "project": {"id": "demo", "name": "Demo", "description": null, "businessDomain": null},
+                  "artifacts": [], "technologies": [], "components": [],
+                  "dataStores": [{
+                    "id": "legacy", "vendor": "POSTGRESQL", "version": "16",
+                    "schemas": [{
+                      "name": "sales",
+                      "tables": [
+                        {"name": "orders", "columns": [
+                          {"name": "id", "dataType": "BIGINT", "length": null, "scale": null, "precision": null, "nullable": false, "defaultExpression": null, "sourceLocator": "schema.sql:1"},
+                          {"name": "customer_id", "dataType": "BIGINT", "length": null, "scale": null, "precision": null, "nullable": false, "defaultExpression": null, "sourceLocator": "schema.sql:1"}
+                        ], "constraints": [], "indexes": [], "sourceLocator": "schema.sql:1"},
+                        {"name": "customers", "columns": [
+                          {"name": "id", "dataType": "BIGINT", "length": null, "scale": null, "precision": null, "nullable": false, "defaultExpression": null, "sourceLocator": "schema.sql:2"},
+                          {"name": "name", "dataType": "TEXT", "length": null, "scale": null, "precision": null, "nullable": true, "defaultExpression": null, "sourceLocator": "schema.sql:2"}
+                        ], "constraints": [], "indexes": [], "sourceLocator": "schema.sql:2"}
+                      ]
+                    }]
+                  }],
+                  "logicalEntities": [], "apiEndpoints": [], "dependencies": [], "businessRules": [],
+                  "analyzedAt": "2026-11-17T00:00:00Z", "modelVersion": "1.0"
+                }
+                """);
+        java.io.PrintStream original = System.out;
+        java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream();
+        try {
+            System.setOut(new java.io.PrintStream(output));
+            assertEquals(0, AegisCli.run(new String[]{"analyze-query-lineage", root.toString(), model.toString()}));
+        } finally {
+            System.setOut(original);
+        }
+        assertTrue(output.toString().contains("order_id"));
+        assertTrue(output.toString().contains("customer_name"));
+    }
+
+    @Test
+    void analyzeQueryLineageCommandValidatesArguments() {
+        assertEquals(2, AegisCli.run(new String[]{"analyze-query-lineage"}));
     }
 
 }
