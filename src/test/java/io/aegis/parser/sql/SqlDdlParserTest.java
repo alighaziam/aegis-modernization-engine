@@ -52,4 +52,21 @@ class SqlDdlParserTest {
         assertEquals("UNSUPPORTED_DDL", result.diagnostics().get(0).code());
         assertEquals("REVIEW_REQUIRED", result.diagnostics().get(0).action());
     }
+    @Test
+    void ignoresQueryAndDmlStatementsWhileParsingDdlInMixedSqlFiles() {
+        String sql = """
+                SELECT id FROM customers;
+                INSERT INTO customers (id) VALUES (1);
+                UPDATE customers SET id = 2;
+                DELETE FROM customers WHERE id = 2;
+                CREATE TABLE audit_log (id BIGINT PRIMARY KEY);
+                """;
+
+        SqlDdlParser.ParseResult result = parser.parse(sql, "mixed.sql", "postgresql");
+
+        assertEquals(1, result.tables().size());
+        assertEquals("audit_log", result.tables().getFirst().name());
+        assertTrue(result.diagnostics().isEmpty(), () -> result.diagnostics().toString());
+    }
+
 }

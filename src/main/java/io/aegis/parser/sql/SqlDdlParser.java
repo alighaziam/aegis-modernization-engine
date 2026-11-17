@@ -3,6 +3,7 @@ package io.aegis.parser.sql;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -58,7 +59,7 @@ public final class SqlDdlParser {
                     replaceTable(tables, table, new Table(table.name(), table.columns(), changed, table.indexes(), table.locator()));
                     evidence.add(new EvidenceDraft("constraint:" + tableName + "." + constraint.name(), sourceName, statement.line(), "ALTER TABLE ADD", "direct", "high"));
                 }
-            } else {
+            } else if (!isNonDdlStatement(text)) {
                 diagnostics.add(diag("UNSUPPORTED_DDL", "Statement is outside the supported DDL subset: " + abbreviate(text), statement.line()));
             }
         }
@@ -70,6 +71,26 @@ public final class SqlDdlParser {
             } else diagnostics.add(diag("INDEX_TABLE_NOT_FOUND", "Index references table not found in parsed DDL: " + index.tableName(), 1));
         }
         return new ParseResult(vendor, tables, indexes, diagnostics, evidence, statements.size());
+    }
+
+    private static boolean isNonDdlStatement(String statement) {
+        String text = statement.stripLeading();
+        while (true) {
+            if (text.startsWith("--")) {
+                int newline = text.indexOf('\n');
+                text = newline < 0 ? "" : text.substring(newline + 1).stripLeading();
+            } else if (text.startsWith("/*")) {
+                int close = text.indexOf("*/", 2);
+                if (close < 0) return false;
+                text = text.substring(close + 2).stripLeading();
+            } else break;
+        }
+        int end = 0;
+        while (end < text.length() && Character.isLetter(text.charAt(end))) end++;
+        if (end == 0) return false;
+        String keyword = text.substring(0, end).toUpperCase(Locale.ROOT);
+        return Set.of("SELECT", "WITH", "INSERT", "UPDATE", "DELETE", "MERGE",
+                "CALL", "BEGIN", "COMMIT", "ROLLBACK", "EXPLAIN").contains(keyword);
     }
 
     private Table parseTable(String name, String body, String source, int line,
