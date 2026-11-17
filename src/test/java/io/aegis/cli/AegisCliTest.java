@@ -369,4 +369,55 @@ class AegisCliTest {
         assertEquals(2, AegisCli.run(new String[]{"reconcile-jpa"}));
     }
 
+    @Test
+    void analyzeQueryLineageCommandExtractsColumnMappingsFromProjectSql() throws Exception {
+        Path root = tempDir.resolve("query-project");
+        Files.createDirectories(root.resolve("sql"));
+        Files.writeString(root.resolve("sql/orders-query.sql"), """
+                SELECT o.id AS order_id, c.name AS customer_name
+                FROM sales.orders o
+                JOIN sales.customers c ON o.customer_id = c.id;
+                """);
+        Path model = tempDir.resolve("query-upkm.json");
+        Files.writeString(model, """
+                {
+                  "project": {"id": "demo", "name": "Demo", "description": null, "businessDomain": null},
+                  "artifacts": [], "technologies": [], "components": [],
+                  "dataStores": [{
+                    "id": "legacy", "vendor": "POSTGRESQL", "version": "16",
+                    "schemas": [{
+                      "name": "sales",
+                      "tables": [
+                        {"name": "orders", "columns": [
+                          {"name": "id", "dataType": "BIGINT", "length": null, "scale": null, "nullable": false, "defaultExpression": null, "locator": "schema.sql:1"},
+                          {"name": "customer_id", "dataType": "BIGINT", "length": null, "scale": null, "nullable": false, "defaultExpression": null, "locator": "schema.sql:1"}
+                        ], "constraints": [], "indexes": [], "locator": "schema.sql:1"},
+                        {"name": "customers", "columns": [
+                          {"name": "id", "dataType": "BIGINT", "length": null, "scale": null, "nullable": false, "defaultExpression": null, "locator": "schema.sql:2"},
+                          {"name": "name", "dataType": "TEXT", "length": null, "scale": null, "nullable": true, "defaultExpression": null, "locator": "schema.sql:2"}
+                        ], "constraints": [], "indexes": [], "locator": "schema.sql:2"}
+                      ]
+                    }]
+                  }],
+                  "logicalEntities": [], "apiEndpoints": [], "dependencies": [], "businessRules": [],
+                  "analyzedAt": "2026-11-17T00:00:00Z", "modelVersion": "1.0"
+                }
+                """);
+        java.io.PrintStream original = System.out;
+        java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream();
+        try {
+            System.setOut(new java.io.PrintStream(output));
+            assertEquals(0, AegisCli.run(new String[]{"analyze-query-lineage", root.toString(), model.toString()}));
+        } finally {
+            System.setOut(original);
+        }
+        assertTrue(output.toString().contains("order_id"));
+        assertTrue(output.toString().contains("customer_name"));
+    }
+
+    @Test
+    void analyzeQueryLineageCommandValidatesArguments() {
+        assertEquals(2, AegisCli.run(new String[]{"analyze-query-lineage"}));
+    }
+
 }
