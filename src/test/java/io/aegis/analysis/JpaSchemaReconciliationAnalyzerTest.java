@@ -21,7 +21,7 @@ class JpaSchemaReconciliationAnalyzerTest {
 
         var report = new JpaSchemaReconciliationAnalyzer().reconcile(model, mappings);
 
-        assertEquals(4, report.counts().matched());
+        assertEquals(5, report.counts().matched());
         assertEquals(0, report.counts().mismatched());
         assertTrue(report.findings().stream().anyMatch(f -> f.code().equals("JPA_RELATIONSHIP_FK_MATCHED")));
     }
