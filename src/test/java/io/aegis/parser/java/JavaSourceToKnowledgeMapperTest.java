@@ -113,4 +113,49 @@ class JavaSourceToKnowledgeMapperTest {
         assertEquals(3, graph.nodeCount());
         assertEquals(2, graph.internalEdgeCount());
     }
+    @Test
+    void resolvesSamePackageFieldAndMethodSignatureReferences() throws Exception {
+        var analyzer = new JavaSourceAnalyzer();
+        var consumer = analyzer.analyze("""
+                package com.acme;
+                class OrderService {
+                    private BillingService billing;
+                    public Customer find(CustomerId id) { return null; }
+                }
+                """, "OrderService.java");
+        var definitions = analyzer.analyze("""
+                package com.acme;
+                class BillingService {}
+                class Customer {}
+                class CustomerId {}
+                """, "DomainTypes.java");
+        var model = new JavaSourceToKnowledgeMapper().merge(
+                ProjectKnowledgeModel.empty(new ProjectKnowledgeModel.Project("demo", "Demo", null, null)),
+                List.of(consumer, definitions));
+
+        for (String target : List.of("BillingService", "Customer", "CustomerId")) {
+            assertTrue(model.dependencies().stream().anyMatch(d ->
+                    d.from().equals("com.acme.OrderService")
+                            && d.to().equals("com.acme." + target)
+                            && d.kind().equals("JAVA_TYPE_REFERENCE")));
+        }
+    }
+
+    @Test
+    void doesNotGuessWhenSimpleTypeNameIsAmbiguousAcrossPackages() throws Exception {
+        var analyzer = new JavaSourceAnalyzer();
+        var consumer = analyzer.analyze("""
+                package com.acme.app;
+                class Consumer { private Customer customer; }
+                """, "Consumer.java");
+        var one = analyzer.analyze("package com.acme.one; class Customer {}", "CustomerOne.java");
+        var two = analyzer.analyze("package com.acme.two; class Customer {}", "CustomerTwo.java");
+        var model = new JavaSourceToKnowledgeMapper().merge(
+                ProjectKnowledgeModel.empty(new ProjectKnowledgeModel.Project("demo", "Demo", null, null)),
+                List.of(consumer, one, two));
+
+        assertFalse(model.dependencies().stream().anyMatch(d ->
+                d.from().equals("com.acme.app.Consumer") && d.kind().equals("JAVA_TYPE_REFERENCE")));
+    }
+
 }
