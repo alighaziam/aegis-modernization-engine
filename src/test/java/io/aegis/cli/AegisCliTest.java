@@ -391,13 +391,13 @@ class AegisCliTest {
                       "name": "sales",
                       "tables": [
                         {"name": "orders", "columns": [
-                          {"name": "id", "dataType": "BIGINT", "length": null, "scale": null, "nullable": false, "defaultExpression": null, "locator": "schema.sql:1"},
-                          {"name": "customer_id", "dataType": "BIGINT", "length": null, "scale": null, "nullable": false, "defaultExpression": null, "locator": "schema.sql:1"}
-                        ], "constraints": [], "indexes": [], "locator": "schema.sql:1"},
+                          {"name": "id", "dataType": "BIGINT", "length": null, "scale": null, "nullable": false, "defaultExpression": null, "sourceLocator": "schema.sql:1"},
+                          {"name": "customer_id", "dataType": "BIGINT", "length": null, "scale": null, "nullable": false, "defaultExpression": null, "sourceLocator": "schema.sql:1"}
+                        ], "constraints": [], "indexes": [], "sourceLocator": "schema.sql:1"},
                         {"name": "customers", "columns": [
-                          {"name": "id", "dataType": "BIGINT", "length": null, "scale": null, "nullable": false, "defaultExpression": null, "locator": "schema.sql:2"},
-                          {"name": "name", "dataType": "TEXT", "length": null, "scale": null, "nullable": true, "defaultExpression": null, "locator": "schema.sql:2"}
-                        ], "constraints": [], "indexes": [], "locator": "schema.sql:2"}
+                          {"name": "id", "dataType": "BIGINT", "length": null, "scale": null, "nullable": false, "defaultExpression": null, "sourceLocator": "schema.sql:2"},
+                          {"name": "name", "dataType": "TEXT", "length": null, "scale": null, "nullable": true, "defaultExpression": null, "sourceLocator": "schema.sql:2"}
+                        ], "constraints": [], "indexes": [], "sourceLocator": "schema.sql:2"}
                       ]
                     }]
                   }],
