@@ -28,6 +28,13 @@ public final class JpaSchemaReconciliationAnalyzer {
         }
 
         for (JpaMappingAnalyzer.EntityMapping entity : mappings.entities()) {
+            if (blank(entity.tableName())) {
+                findings.add(new Finding("JPA_ENTITY_TABLE_NOT_EXPLICIT", Severity.INFO, Status.NOT_CHECKED,
+                        entity.qualifiedName(), null, null,
+                        "No explicit @Table name is available; provider naming strategy is not guessed.",
+                        entity.sourceLocator(), null));
+                continue;
+            }
             List<TableMatch> matches = findTables(model, entity);
             if (matches.isEmpty()) {
                 findings.add(new Finding("JPA_ENTITY_TABLE_NOT_FOUND", Severity.WARNING, Status.MISMATCH,
@@ -51,9 +58,17 @@ public final class JpaSchemaReconciliationAnalyzer {
                     entity.sourceLocator(), match.table().sourceLocator()));
 
             for (JpaMappingAnalyzer.ColumnMapping column : entity.columns()) {
-                if (blank(column.columnName())) continue; // Provider naming strategy/default field mapping is not guessed.
-                boolean exists = match.table().columns().stream()
-                        .anyMatch(candidate -> same(candidate.name(), column.columnName()));
+                if (blank(column.columnName())) {
+                    findings.add(new Finding("JPA_COLUMN_NOT_EXPLICIT", Severity.INFO, Status.NOT_CHECKED,
+                            entity.qualifiedName(), match.table().name(), column.fieldName(),
+                            "No explicit @Column name is available; provider naming strategy is not guessed.",
+                            entity.sourceLocator(), match.table().sourceLocator()));
+                    continue;
+                }
+                ProjectKnowledgeModel.DbColumn physicalColumn = match.table().columns().stream()
+                        .filter(candidate -> same(candidate.name(), column.columnName()))
+                        .findFirst().orElse(null);
+                boolean exists = physicalColumn != null;
                 findings.add(new Finding(exists ? "JPA_COLUMN_MATCHED" : "JPA_COLUMN_NOT_FOUND",
                         exists ? Severity.INFO : Severity.WARNING,
                         exists ? Status.MATCH : Status.MISMATCH,
@@ -61,10 +76,42 @@ public final class JpaSchemaReconciliationAnalyzer {
                         exists ? "Explicit JPA column exists in the physical table."
                                 : "Explicit JPA column is absent from the physical table.",
                         entity.sourceLocator(), match.table().sourceLocator()));
+                if (physicalColumn == null) continue;
+
+                if (!blank(column.nullable())) {
+                    boolean jpaNullable = Boolean.parseBoolean(column.nullable());
+                    boolean matchesNullability = jpaNullable == physicalColumn.nullable();
+                    findings.add(new Finding(matchesNullability ? "JPA_COLUMN_NULLABILITY_MATCHED"
+                                    : "JPA_COLUMN_NULLABILITY_MISMATCH",
+                            matchesNullability ? Severity.INFO : Severity.WARNING,
+                            matchesNullability ? Status.MATCH : Status.MISMATCH,
+                            entity.qualifiedName(), match.table().name(), column.fieldName(),
+                            matchesNullability ? "JPA and physical column nullability agree."
+                                    : "JPA and physical column nullability differ.",
+                            entity.sourceLocator(), physicalColumn.sourceLocator()));
+                }
+                if ("true".equalsIgnoreCase(column.unique())) {
+                    boolean unique = isSingleColumnUnique(match.table(), column.columnName());
+                    findings.add(new Finding(unique ? "JPA_COLUMN_UNIQUENESS_MATCHED"
+                                    : "JPA_COLUMN_UNIQUENESS_MISMATCH",
+                            unique ? Severity.INFO : Severity.WARNING,
+                            unique ? Status.MATCH : Status.MISMATCH,
+                            entity.qualifiedName(), match.table().name(), column.fieldName(),
+                            unique ? "JPA unique declaration is enforced by a single-column physical key/index."
+                                    : "JPA declares a unique column but no single-column physical unique key/index exists.",
+                            entity.sourceLocator(), match.table().sourceLocator()));
+                }
             }
         }
 
         for (JpaMappingAnalyzer.RelationshipEdge relation : mappings.relationships()) {
+            if (!supportsDirectForeignKey(relation.kind())) {
+                findings.add(new Finding("JPA_RELATIONSHIP_KIND_NOT_CHECKED", Severity.INFO, Status.NOT_CHECKED,
+                        relation.fromEntity(), null, relation.fieldName(),
+                        "This relationship kind is not validated as a direct source-to-target foreign key.",
+                        relation.sourceLocator(), null));
+                continue;
+            }
             JpaMappingAnalyzer.EntityMapping sourceEntity = entity(mappings, relation.fromEntity());
             JpaMappingAnalyzer.EntityMapping targetEntity = entity(mappings, relation.toEntity());
             if (sourceEntity == null || targetEntity == null) continue;
@@ -86,6 +133,20 @@ public final class JpaSchemaReconciliationAnalyzer {
                     .map(JpaMappingAnalyzer.ColumnMapping::columnName).toList();
             List<String> targetColumns = relation.joinColumns().stream()
                     .map(JpaMappingAnalyzer.ColumnMapping::referencedColumnName).toList();
+            for (JpaMappingAnalyzer.ColumnMapping join : relation.joinColumns()) {
+                if (sourceTables.getFirst().table().columns().stream()
+                        .noneMatch(column -> same(column.name(), join.columnName())))
+                    findings.add(new Finding("JPA_JOIN_SOURCE_COLUMN_NOT_FOUND", Severity.WARNING, Status.MISMATCH,
+                            relation.fromEntity(), sourceTables.getFirst().table().name(), relation.fieldName(),
+                            "Explicit join column " + join.columnName() + " is missing from the source table.",
+                            relation.sourceLocator(), sourceTables.getFirst().table().sourceLocator()));
+                if (targetTables.getFirst().table().columns().stream()
+                        .noneMatch(column -> same(column.name(), join.referencedColumnName())))
+                    findings.add(new Finding("JPA_JOIN_TARGET_COLUMN_NOT_FOUND", Severity.WARNING, Status.MISMATCH,
+                            relation.toEntity(), targetTables.getFirst().table().name(), relation.fieldName(),
+                            "Explicit referenced column " + join.referencedColumnName() + " is missing from the target table.",
+                            relation.sourceLocator(), targetTables.getFirst().table().sourceLocator()));
+            }
             boolean fkMatches = sourceTables.getFirst().table().constraints().stream()
                     .filter(constraint -> constraint.type() == ProjectKnowledgeModel.ConstraintType.FOREIGN_KEY)
                     .anyMatch(constraint -> sameList(constraint.columns(), sourceColumns)
@@ -101,6 +162,22 @@ public final class JpaSchemaReconciliationAnalyzer {
         }
 
         return report(findings);
+    }
+
+    private static boolean supportsDirectForeignKey(String kind) {
+        if (kind == null) return false;
+        String normalized = kind.toLowerCase(Locale.ROOT);
+        return normalized.contains("manytoone") || normalized.contains("onetoone");
+    }
+
+    private static boolean isSingleColumnUnique(ProjectKnowledgeModel.DbTable table, String column) {
+        boolean constraint = table.constraints().stream().anyMatch(candidate ->
+                (candidate.type() == ProjectKnowledgeModel.ConstraintType.UNIQUE
+                        || candidate.type() == ProjectKnowledgeModel.ConstraintType.PRIMARY_KEY)
+                        && candidate.columns().size() == 1 && same(candidate.columns().getFirst(), column));
+        boolean index = table.indexes().stream().anyMatch(candidate -> candidate.unique()
+                && candidate.columns().size() == 1 && same(candidate.columns().getFirst(), column));
+        return constraint || index;
     }
 
     private static List<TableMatch> findTables(ProjectKnowledgeModel model,
