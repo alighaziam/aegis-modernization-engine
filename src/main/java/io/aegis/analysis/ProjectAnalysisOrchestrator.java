@@ -26,11 +26,14 @@ public final class ProjectAnalysisOrchestrator {
         OpenApiProjectScanner.ScanReport openApi = new OpenApiProjectScanner().scan(projectRoot, model);
         model = openApi.knowledgeModel();
 
+        JpaMappingAnalyzer.MappingReport jpa = new JpaMappingAnalyzer().analyze(projectRoot);
+
         DependencyGraphAnalyzer.GraphReport dependencyGraph = new DependencyGraphAnalyzer().analyze(model);
         DataLineageAnalyzer.LineageReport lineage = new DataLineageAnalyzer().analyze(model);
         List<String> diagnostics = new ArrayList<>(source.diagnostics());
         if (database != null) diagnostics.addAll(database.diagnostics());
         diagnostics.addAll(openApi.diagnostics());
+        diagnostics.addAll(jpa.diagnostics());
         diagnostics.addAll(lineage.diagnostics());
 
         int tables = model.dataStores().stream().flatMap(store -> store.schemas().stream())
@@ -42,10 +45,11 @@ public final class ProjectAnalysisOrchestrator {
                 dependencyGraph.nodeCount(), dependencyGraph.internalEdgeCount(),
                 dependencyGraph.externalEdgeCount(), dependencyGraph.cycles().size(),
                 database == null ? 0 : database.filesDiscovered(), openApi.specificationsAnalyzed(),
-                openApi.schemasDiscovered(), tables, columns, lineage.edges().size(),
+                openApi.schemasDiscovered(), jpa.entities().size(), jpa.relationships().size(),
+                tables, columns, lineage.edges().size(),
                 model.apiEndpoints().size(), model.logicalEntities().size(),
                 diagnostics);
-        return new AnalysisResult(model, summary, source, database, openApi, dependencyGraph, lineage);
+        return new AnalysisResult(model, summary, source, database, openApi, jpa, dependencyGraph, lineage);
     }
 
     public record DatabaseProfile(String dialect, String dataStoreId, String schemaName, String databaseVersion) {
@@ -61,7 +65,7 @@ public final class ProjectAnalysisOrchestrator {
                                   int dependencyNodes, int internalDependencyEdges,
                                   int externalDependencyEdges, int dependencyCycles,
                                   int sqlFiles, int openApiSpecifications, int openApiSchemas,
-                                  int physicalTables, int physicalColumns,
+                                  int jpaEntities, int jpaRelationships, int physicalTables, int physicalColumns,
                                   int foreignKeyLineageEdges, int apiEndpoints, int logicalEntities,
                                   List<String> diagnostics) {
         public AnalysisSummary { diagnostics = List.copyOf(diagnostics); }
@@ -71,6 +75,7 @@ public final class ProjectAnalysisOrchestrator {
                                  ProjectSourceScanner.ScanReport source,
                                  DatabaseProjectScanner.ScanReport database,
                                  OpenApiProjectScanner.ScanReport openApi,
+                                 JpaMappingAnalyzer.MappingReport jpa,
                                  DependencyGraphAnalyzer.GraphReport dependencyGraph,
                                  DataLineageAnalyzer.LineageReport lineage) {}
 }

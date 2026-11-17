@@ -17,6 +17,10 @@ import javax.tools.SimpleJavaFileObject;
 import javax.tools.ToolProvider;
 import java.net.URI;
 import java.nio.file.Files;
+import java.nio.file.FileVisitResult;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -44,35 +48,51 @@ public final class JpaMappingAnalyzer {
         Path root = sourceRoot.toRealPath();
         if (!Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS))
             throw new IllegalArgumentException("Source root must be a directory");
-        List<Path> files;
-        try (var paths = Files.walk(root)) {
-            files = paths.filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)
-                            && !Files.isSymbolicLink(path)
-                            && path.getFileName().toString().endsWith(".java"))
-                    .sorted(Comparator.comparing(path -> root.relativize(path).toString()))
-                    .limit(MAX_FILES + 1L).toList();
-        }
-        if (files.size() > MAX_FILES) throw new java.io.IOException("JPA scan exceeds " + MAX_FILES + " Java files");
+        List<Path> files = new ArrayList<>();
+        List<String> diagnostics = new ArrayList<>();
+        Files.walkFileTree(root, new SimpleFileVisitor<>() {
+            @Override public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                if (!dir.equals(root) && EXCLUDED_DIRECTORIES.contains(dir.getFileName().toString()))
+                    return FileVisitResult.SKIP_SUBTREE;
+                return FileVisitResult.CONTINUE;
+            }
+            @Override public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws java.io.IOException {
+                if (attrs.isRegularFile() && !Files.isSymbolicLink(file)
+                        && file.getFileName().toString().endsWith(".java")) {
+                    files.add(file);
+                    if (files.size() > MAX_FILES)
+                        throw new java.io.IOException("JPA scan exceeds " + MAX_FILES + " Java files");
+                }
+                return FileVisitResult.CONTINUE;
+            }
+            @Override public FileVisitResult visitFileFailed(Path file, java.io.IOException failure) {
+                diagnostics.add("UNREADABLE_PATH: " + root.relativize(file) + ": " + failure.getMessage());
+                return FileVisitResult.CONTINUE;
+            }
+        });
+        files.sort(Comparator.comparing(path -> root.relativize(path).toString()));
 
         List<EntityMapping> entities = new ArrayList<>();
-        List<String> diagnostics = new ArrayList<>();
         long totalBytes = 0;
         for (Path file : files) {
             long size = Files.size(file);
+            String locator = root.relativize(file).toString().replace('\\', '/');
             if (size > MAX_FILE_BYTES) {
-                diagnostics.add("FILE_SIZE_LIMIT: " + root.relativize(file) + " exceeds " + MAX_FILE_BYTES + " bytes");
+                diagnostics.add("FILE_SIZE_LIMIT: " + locator + " exceeds " + MAX_FILE_BYTES + " bytes");
                 continue;
             }
             totalBytes += size;
-            if (totalBytes > MAX_TOTAL_BYTES) throw new java.io.IOException("JPA scan exceeds " + MAX_TOTAL_BYTES + " bytes");
-            String locator = root.relativize(file).toString().replace('\\', '/');
-            String source = Files.readString(file);
+            if (totalBytes > MAX_TOTAL_BYTES)
+                throw new java.io.IOException("JPA scan exceeds " + MAX_TOTAL_BYTES + " bytes");
             try {
+                String source = Files.readString(file, StandardCharsets.UTF_8);
                 ParseOutcome outcome = parse(source, locator);
                 entities.addAll(outcome.entities());
                 diagnostics.addAll(outcome.diagnostics());
             } catch (RuntimeException failure) {
                 diagnostics.add("JAVA_PARSE_FAILED: " + locator + ": " + failure.getMessage());
+            } catch (java.io.IOException unreadable) {
+                diagnostics.add("UNREADABLE_FILE: " + locator + ": " + unreadable.getMessage());
             }
         }
         return correlate(entities, diagnostics, files.size(), totalBytes);

@@ -61,7 +61,7 @@ The initial Oracle adapter persists project metadata and immutable UPKM JSON sna
 - **Analysis Orchestrator:** deterministic workflow scheduling, incremental recomputation and reproducible runs; not an autonomous LLM agent.
 - **Legacy Discovery Engine:** languages, frameworks, build systems, modules, APIs, ORM mappings, integrations and configuration.
 - **Data Intelligence Engine:** physical, logical and target data views, lineage, mapping and data-quality findings.
-- **Architecture Intelligence Engine:** dependency graphs, coupling/cohesion, supported patterns, cycles and hotspots. Java references are matched deterministically from imports, inheritance, fields and method signatures; ambiguous simple names remain unresolved rather than guessed.
+- **Architecture Intelligence Engine:** dependency graphs, coupling/cohesion, supported patterns, cycles and hotspots. Java references are matched deterministically from imports, inheritance, fields and method signatures; ambiguous simple names remain unresolved rather than guessed. A separate JPA AST analyzer extracts explicit entity and relationship annotations without loading ORM providers or running annotation processors.
 - **Decision and Migration Planning Engine:** compatibility matrices, policies, quality attributes, risk and explicit approval.
 - **Transformation Workbench:** versioned deterministic recipes, diffs and reversible changes; original inputs remain immutable.
 - **Validation and Reconciliation:** compilation, static checks, tests, API comparisons, behavior characterization, data reconciliation and rollback verification.

@@ -119,8 +119,13 @@ class AegisCliTest {
     void analyzeProjectCommandScansNestedJavaSources() throws Exception {
         Path root = tempDir.resolve("project-root");
         Files.createDirectories(root.resolve("src/main/java/com/acme"));
-        Files.writeString(root.resolve("src/main/java/com/acme/Customer.java"),
-                "package com.acme; public class Customer {}");
+        Files.writeString(root.resolve("src/main/java/com/acme/Customer.java"), """
+                package com.acme;
+                import jakarta.persistence.Entity;
+                import jakarta.persistence.Table;
+                @Entity @Table(name = "CUSTOMERS")
+                public class Customer {}
+                """);
         Path intake = tempDir.resolve("project-scan.json");
         Files.writeString(intake, """
                 {
@@ -223,8 +228,13 @@ class AegisCliTest {
         Path root = tempDir.resolve("workspace-project");
         Files.createDirectories(root.resolve("src/main/java/com/acme"));
         Files.createDirectories(root.resolve("db"));
-        Files.writeString(root.resolve("src/main/java/com/acme/Customer.java"),
-                "package com.acme; public class Customer {}");
+        Files.writeString(root.resolve("src/main/java/com/acme/Customer.java"), """
+                package com.acme;
+                import jakarta.persistence.Entity;
+                import jakarta.persistence.Table;
+                @Entity @Table(name = "CUSTOMERS")
+                public class Customer {}
+                """);
         Files.writeString(root.resolve("db/schema.sql"),
                 "CREATE TABLE customers (id BIGINT PRIMARY KEY);");
         Files.writeString(root.resolve("openapi.yaml"), """

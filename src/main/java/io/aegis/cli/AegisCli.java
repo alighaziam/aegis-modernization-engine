@@ -370,6 +370,8 @@ public final class AegisCli {
         writeWorkspaceFile(realOutputDir.resolve("analysis-summary.json"), JSON.writeValueAsString(result.summary()));
         writeWorkspaceFile(realOutputDir.resolve("openapi-inventory.json"), JSON.writeValueAsString(
                 new OpenApiInventory(result.openApi().specifications(), result.openApi().schemas(), result.openApi().diagnostics())));
+        writeWorkspaceFile(realOutputDir.resolve("jpa-mappings.json"), JSON.writeValueAsString(
+                new JpaInventory(result.jpa().entities(), result.jpa().relationships(), result.jpa().diagnostics(), result.jpa().limitations())));
         System.out.println(JSON.writeValueAsString(result.summary()));
         return result.summary().diagnostics().isEmpty() ? 0 : 3;
     }
@@ -516,7 +518,8 @@ public final class AegisCli {
         return 0;
     }
 
-    public record OpenApiInventory(java.util.List<io.aegis.discovery.OpenApiProjectScanner.SpecificationSummary> specifications,                                    java.util.List<io.aegis.parser.openapi.OpenApiYamlAnalyzer.Schema> schemas,                                    java.util.List<String> diagnostics) {}     public record ReportOutput(String input, String output, int characters, String format) {}
+    public record OpenApiInventory(java.util.List<io.aegis.discovery.OpenApiProjectScanner.SpecificationSummary> specifications,                                    java.util.List<io.aegis.parser.openapi.OpenApiYamlAnalyzer.Schema> schemas,                                    java.util.List<String> diagnostics) {}     public record JpaInventory(java.util.List<JpaMappingAnalyzer.EntityMapping> entities, java.util.List<JpaMappingAnalyzer.RelationshipEdge> relationships, java.util.List<String> diagnostics, java.util.List<String> limitations) {}
+    public record ReportOutput(String input, String output, int characters, String format) {}
     public record OpenApiAnalysisOutput(ProjectKnowledgeModel knowledgeModel, OpenApiYamlAnalyzer.Analysis openApi) {}
     public record JavaImportMigrationOutput(JavaImportMigrationEngine.MigrationResult migration, boolean written) {}
     public record DdlMigrationOutput(SqlDdlParser.ParseResult sourceAnalysis,
