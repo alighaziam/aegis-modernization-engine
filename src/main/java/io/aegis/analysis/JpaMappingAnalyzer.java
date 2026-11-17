@@ -109,7 +109,7 @@ public final class JpaMappingAnalyzer {
                         for (Tree member : node.getMembers()) {
                             if (!(member instanceof VariableTree field)) continue;
                             Map<String, AnnotationTree> fieldAnnotations = annotations(field.getModifiers(), imports);
-                            for (String name : List.of("Column", "JoinColumn", "JoinColumns")) {
+                            for (String name : List.of("Column", "JoinColumn", "JoinColumns", "Id", "EmbeddedId")) {
                                 AnnotationTree annotation = fieldAnnotations.get(name);
                                 if (annotation != null) {
                                     if (name.equals("JoinColumns")) {
@@ -136,11 +136,11 @@ public final class JpaMappingAnalyzer {
                                         if (annotationName(nested).equals("JoinColumn"))
                                             joins.add(column(field.getName().toString(), nested));
                                 relationships.add(new RelationshipMapping(field.getName().toString(), relationship,
-                                        target, joins, sourceName, FactStatus.OBSERVED));
+                                        target, args.getOrDefault("mappedBy", ""), joins, sourceName, FactStatus.OBSERVED));
                             }
                         }
-                        entities.add(new EntityMapping(qualified, simpleName, table, schema,
-                                columns, relationships, sourceName, FactStatus.OBSERVED));
+                        entities.add(new EntityMapping(qualified, simpleName, packageName, List.copyOf(imports),
+                                table, schema, columns, relationships, sourceName, FactStatus.OBSERVED));
                         return super.visitClass(node, unused);
                     }
                 }.scan(unit, null);
@@ -167,10 +167,26 @@ public final class JpaMappingAnalyzer {
                     diagnostics.add("UNRESOLVED_JPA_TARGET: " + entity.qualifiedName() + "." + relation.fieldName());
                     continue;
                 }
-                String resolved = bySimple.containsKey(target) && bySimple.get(target).size() == 1
-                        ? bySimple.get(target).getFirst().qualifiedName()
-                        : entities.stream().anyMatch(candidate -> candidate.qualifiedName().equals(target))
+                String resolved = entities.stream().anyMatch(candidate -> candidate.qualifiedName().equals(target))
                         ? target : null;
+                if (resolved == null && !target.contains(".")) {
+                    String samePackage = entity.packageName().isBlank() ? target : entity.packageName() + "." + target;
+                    if (entities.stream().anyMatch(candidate -> candidate.qualifiedName().equals(samePackage)))
+                        resolved = samePackage;
+                }
+                if (resolved == null && !target.contains(".")) {
+                    List<String> explicitImports = entity.imports().stream()
+                            .filter(name -> name.endsWith("." + target) && !name.endsWith(".*"))
+                            .filter(name -> entities.stream().anyMatch(candidate -> candidate.qualifiedName().equals(name)))
+                            .toList();
+                    if (explicitImports.size() == 1) resolved = explicitImports.getFirst();
+                    else if (explicitImports.size() > 1) {
+                        diagnostics.add("AMBIGUOUS_JPA_TARGET: " + entity.qualifiedName() + "." + relation.fieldName() + " -> " + target);
+                        continue;
+                    }
+                }
+                if (resolved == null && bySimple.containsKey(target) && bySimple.get(target).size() == 1)
+                    resolved = bySimple.get(target).getFirst().qualifiedName();
                 if (resolved == null) {
                     diagnostics.add((bySimple.containsKey(target) ? "AMBIGUOUS_JPA_TARGET: " : "UNRESOLVED_JPA_TARGET: ")
                             + entity.qualifiedName() + "." + relation.fieldName() + " -> " + target);
@@ -262,14 +278,14 @@ public final class JpaMappingAnalyzer {
     public enum FactStatus { OBSERVED }
     public record ColumnMapping(String fieldName, String columnName, String referencedColumnName,
                                 String nullable, String unique) {}
-    public record RelationshipMapping(String fieldName, String kind, String targetEntity,
+    public record RelationshipMapping(String fieldName, String kind, String targetEntity, String mappedBy,
                                       List<ColumnMapping> joinColumns, String sourceLocator, FactStatus status) {
         public RelationshipMapping { joinColumns = List.copyOf(joinColumns); }
     }
-    public record EntityMapping(String qualifiedName, String simpleName, String tableName, String schema,
-                                List<ColumnMapping> columns, List<RelationshipMapping> relationships,
-                                String sourceLocator, FactStatus status) {
-        public EntityMapping { columns = List.copyOf(columns); relationships = List.copyOf(relationships); }
+    public record EntityMapping(String qualifiedName, String simpleName, String packageName, List<String> imports,
+                                String tableName, String schema, List<ColumnMapping> columns,
+                                List<RelationshipMapping> relationships, String sourceLocator, FactStatus status) {
+        public EntityMapping { imports = List.copyOf(imports); columns = List.copyOf(columns); relationships = List.copyOf(relationships); }
     }
     public record RelationshipEdge(String fromEntity, String toEntity, String fieldName, String kind,
                                     List<ColumnMapping> joinColumns, String sourceLocator, FactStatus status) {
