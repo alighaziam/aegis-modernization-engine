@@ -33,15 +33,33 @@ public final class JavaSourceToKnowledgeMapper {
                                     type.qualifiedName(), "JAVA_" + type.kind().toUpperCase(Locale.ROOT),
                                     file.sourceName() + ":" + type.line(),
                                     ProjectKnowledgeModel.FactStatus.OBSERVED));
+                }
+            }
+        }
 
+        // Resolve only explicit import names against the complete set of discovered project types.
+        // This is deterministic name matching, not compiler symbol resolution.
+        for (JavaSourceAnalyzer.AnalysisResult analysis : analyses) {
+            for (JavaSourceAnalyzer.SourceFile file : analysis.files()) {
+                for (JavaSourceAnalyzer.TypeDeclaration type : file.types()) {
                     for (JavaSourceAnalyzer.ImportDeclaration imported : file.imports()) {
-                        String kind = imported.isStatic() ? "JAVA_STATIC_IMPORT"
-                                : imported.qualifiedName().endsWith(".*") ? "JAVA_WILDCARD_IMPORT"
-                                : "JAVA_IMPORT";
-                        ProjectKnowledgeModel.Dependency dependency = new ProjectKnowledgeModel.Dependency(
-                                type.qualifiedName(), imported.qualifiedName(), kind,
-                                ProjectKnowledgeModel.FactStatus.OBSERVED, List.of());
-                        dependencies.putIfAbsent(key(dependency.from(), dependency.to(), dependency.kind()), dependency);
+                        List<String> internalTargets = resolveInternalTargets(imported, components.keySet());
+                        if (!internalTargets.isEmpty()) {
+                            for (String target : internalTargets) {
+                                ProjectKnowledgeModel.Dependency dependency = new ProjectKnowledgeModel.Dependency(
+                                        type.qualifiedName(), target, "JAVA_INTERNAL_IMPORT",
+                                        ProjectKnowledgeModel.FactStatus.OBSERVED, List.of());
+                                dependencies.putIfAbsent(key(dependency.from(), dependency.to(), dependency.kind()), dependency);
+                            }
+                        } else {
+                            String kind = imported.isStatic() ? "JAVA_STATIC_IMPORT"
+                                    : imported.qualifiedName().endsWith(".*") ? "JAVA_WILDCARD_IMPORT"
+                                    : "JAVA_IMPORT";
+                            ProjectKnowledgeModel.Dependency dependency = new ProjectKnowledgeModel.Dependency(
+                                    type.qualifiedName(), imported.qualifiedName(), kind,
+                                    ProjectKnowledgeModel.FactStatus.OBSERVED, List.of());
+                            dependencies.putIfAbsent(key(dependency.from(), dependency.to(), dependency.kind()), dependency);
+                        }
                     }
                 }
             }
@@ -51,6 +69,27 @@ public final class JavaSourceToKnowledgeMapper {
                 new ArrayList<>(components.values()), project.dataStores(), project.logicalEntities(),
                 project.apiEndpoints(), new ArrayList<>(dependencies.values()), project.businessRules(),
                 project.analyzedAt(), project.modelVersion());
+    }
+
+    private static List<String> resolveInternalTargets(JavaSourceAnalyzer.ImportDeclaration imported,
+                                                       java.util.Set<String> componentIds) {
+        String name = imported.qualifiedName();
+        if (!imported.isStatic() && name.endsWith(".*")) {
+            String packagePrefix = name.substring(0, name.length() - 2) + ".";
+            return componentIds.stream().filter(id -> id.startsWith(packagePrefix)).sorted().toList();
+        }
+        if (!imported.isStatic())
+            return componentIds.contains(name) ? List.of(name) : List.of();
+
+        // A static member import names its declaring type followed by a member; resolve
+        // the longest prefix that is a discovered project type.
+        int separator = name.lastIndexOf('.');
+        while (separator > 0) {
+            String owner = name.substring(0, separator);
+            if (componentIds.contains(owner)) return List.of(owner);
+            separator = name.lastIndexOf('.', separator - 1);
+        }
+        return List.of();
     }
 
     private static String key(String from, String to, String kind) {
