@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.aegis.domain.ProjectKnowledgeModel;
 import io.aegis.analysis.DependencyGraphAnalyzer;
+import io.aegis.analysis.DataLineageAnalyzer;
 import io.aegis.analysis.JavaBehaviorAnalyzer;
 import io.aegis.analysis.LogicalModelInferer;
 import io.aegis.discovery.TechnologyDetector;
@@ -68,6 +69,7 @@ public final class AegisCli {
                 case "detect-tech" -> runDetectTech(args);
                 case "analyze-project" -> runAnalyzeProject(args);
                 case "analyze-database" -> runAnalyzeDatabase(args);
+                case "analyze-lineage" -> runAnalyzeLineage(args);
                 case "render-report" -> runRenderReport(args);
                 case "analyze-openapi" -> runAnalyzeOpenApi(args);
                 case "infer-model" -> runInferModel(args);
@@ -271,6 +273,18 @@ public final class AegisCli {
         DependencyGraphAnalyzer.GraphReport graph = new DependencyGraphAnalyzer().analyze(mapped);
         System.out.println(JSON.writeValueAsString(new JavaAnalysisOutput(mapped, analysis, graph)));
         return analysis.diagnostics().isEmpty() ? 0 : 3;
+    }
+
+    private static int runAnalyzeLineage(String[] args) throws Exception {
+        if (args.length != 2) {
+            System.err.println("Usage: aegis-modernization-engine analyze-lineage <upkm.json>");
+            return 2;
+        }
+        ProjectKnowledgeModel model = JSON.readValue(
+                Files.readString(Path.of(args[1]), StandardCharsets.UTF_8), ProjectKnowledgeModel.class);
+        DataLineageAnalyzer.LineageReport report = new DataLineageAnalyzer().analyze(model);
+        System.out.println(JSON.writeValueAsString(report));
+        return report.diagnostics().isEmpty() ? 0 : 3;
     }
 
     private static int runRenderReport(String[] args) throws Exception {
@@ -486,6 +500,8 @@ public final class AegisCli {
                       Scan a complete Java/Maven/Gradle project tree without executing its build.
                   analyze-database <project-root> <intake.json> <dialect> <store-id> <schema-name> [db-version]
                       Scan SQL DDL files across a project tree and merge the supported physical schema.
+                  analyze-lineage <upkm.json>
+                      Extract declared physical foreign-key lineage and report incomplete mappings.
                   render-report <upkm.json> <report.md>
                       Render a deterministic Markdown architecture and modernization report.
                   detect-tech <pom.xml|build.gradle|source.java>...
