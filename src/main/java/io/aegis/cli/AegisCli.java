@@ -8,6 +8,7 @@ import io.aegis.analysis.DependencyGraphAnalyzer;
 import io.aegis.analysis.ProjectAnalysisOrchestrator;
 import io.aegis.analysis.DataLineageAnalyzer;
 import io.aegis.analysis.JpaMappingAnalyzer;
+import io.aegis.analysis.JpaSchemaReconciliationAnalyzer;
 import io.aegis.analysis.JavaBehaviorAnalyzer;
 import io.aegis.analysis.LogicalModelInferer;
 import io.aegis.discovery.TechnologyDetector;
@@ -74,6 +75,7 @@ public final class AegisCli {
                 case "analyze-database" -> runAnalyzeDatabase(args);
                 case "analyze-lineage" -> runAnalyzeLineage(args);
                 case "analyze-jpa" -> runAnalyzeJpa(args);
+                case "reconcile-jpa" -> runReconcileJpa(args);
                 case "render-report" -> runRenderReport(args);
                 case "analyze-openapi" -> runAnalyzeOpenApi(args);
                 case "infer-model" -> runInferModel(args);
@@ -299,6 +301,21 @@ public final class AegisCli {
         JpaMappingAnalyzer.MappingReport report = new JpaMappingAnalyzer().analyze(Path.of(args[1]));
         System.out.println(JSON.writeValueAsString(report));
         return report.diagnostics().isEmpty() ? 0 : 3;
+    }
+
+    private static int runReconcileJpa(String[] args) throws Exception {
+        if (args.length != 3) {
+            System.err.println("Usage: aegis-modernization-engine reconcile-jpa <upkm.json> <orm-mappings.json>");
+            return 2;
+        }
+        ProjectKnowledgeModel model = JSON.readValue(
+                Files.readString(Path.of(args[1]), StandardCharsets.UTF_8), ProjectKnowledgeModel.class);
+        JpaMappingAnalyzer.MappingReport mappings = JSON.readValue(
+                Files.readString(Path.of(args[2]), StandardCharsets.UTF_8), JpaMappingAnalyzer.MappingReport.class);
+        JpaSchemaReconciliationAnalyzer.ReconciliationReport report =
+                new JpaSchemaReconciliationAnalyzer().reconcile(model, mappings);
+        System.out.println(JSON.writeValueAsString(report));
+        return report.counts().mismatched() == 0 && report.counts().ambiguous() == 0 ? 0 : 3;
     }
 
     private static int runRenderReport(String[] args) throws Exception {
