@@ -50,7 +50,7 @@ Two database roles are deliberately separated:
 
 All application services depend on the database-neutral `ProjectRepository` interface. The Oracle adapter owns JDBC, connection pooling and Oracle SQL. No Oracle-specific classes or SQL types may enter the UPKM/domain layer. Customer database parsers and transformation planners are separate dialect adapters and must not use the internal persistence connection.
 
-The initial Oracle adapter persists project metadata and immutable UPKM JSON snapshots in CLOBs. The artifact object store and append-only evidence/conflict journals remain separate stores at this milestone; moving those to Oracle is a later repository-adapter milestone.
+The Oracle adapter persists project metadata, immutable UPKM JSON snapshots, artifact objects and append-only evidence/conflict journal events behind repository interfaces. Oracle is an optional Aegis-internal persistence backend; parsing and static analysis commands run without an Oracle connection. Customer database discovery remains file/DDL based at this milestone; live read-only catalog discovery is not yet implemented.
 
 ## 4. Core subsystems
 
@@ -60,12 +60,12 @@ The initial Oracle adapter persists project metadata and immutable UPKM JSON sna
 - **Evidence and Conflict Registry:** provenance, extraction method, rule/parser version, confidence rationale, user confirmations and unresolved conflicts.
 - **Analysis Orchestrator:** deterministic workflow scheduling, incremental recomputation and reproducible runs; not an autonomous LLM agent.
 - **Legacy Discovery Engine:** languages, frameworks, build systems, modules, APIs, ORM mappings, integrations and configuration.
-- **Data Intelligence Engine:** physical, logical and target data views, lineage, mapping and data-quality findings.
-- **Architecture Intelligence Engine:** dependency graphs, coupling/cohesion, supported patterns, cycles and hotspots. Java references are matched deterministically from imports, inheritance, fields and method signatures; ambiguous simple names remain unresolved rather than guessed.
+- **Data Intelligence Engine:** physical FK lineage, explicit JPA entity/table/column/relationship extraction, conservative SQL SELECT/JOIN output-column lineage and JPA-to-DDL reconciliation. Implicit ORM naming, CTEs, subqueries, computed SQL expressions, stored procedures and runtime data lineage are not inferred.
+- **Architecture Intelligence Engine:** dependency graphs, cycles and deterministic Java type/field/method-signature references. Java reference matching is syntactic and import-aware, not compiler-backed symbol resolution; ambiguous simple names remain unresolved.
 - **Decision and Migration Planning Engine:** compatibility matrices, policies, quality attributes, risk and explicit approval.
 - **Transformation Workbench:** versioned deterministic recipes, diffs and reversible changes; original inputs remain immutable.
 - **Validation and Reconciliation:** compilation, static checks, tests, API comparisons, behavior characterization, data reconciliation and rollback verification.
-- **Reporting:** architecture maps, lineage, decision records, roadmaps, risk registers and validation reports. The current CLI can render a deterministic Markdown snapshot from a serialized UPKM, including declared physical foreign-key lineage. The workspace orchestrator combines source discovery, optional DDL scanning, recursive OpenAPI contract discovery, dependency graphs and physical lineage, then writes UPKM JSON, a summary and a Markdown report. Interactive visual maps and richer export formats remain future work.
+- **Reporting:** architecture maps, lineage, decision records, roadmaps, risk registers and validation reports. The current CLI can render a deterministic Markdown snapshot from a serialized UPKM. The workspace orchestrator combines Java/build discovery, optional DDL scanning, recursive OpenAPI discovery, JPA mapping analysis, dependency graphs, physical FK lineage, SQL SELECT/JOIN lineage and JPA-to-DDL reconciliation. It writes UPKM JSON, OpenAPI/ORM/query-lineage/reconciliation inventories, a summary and a Markdown report. Interactive visual maps and richer export formats remain future work.
 
 ## 5. Data model layers
 
@@ -74,6 +74,16 @@ The initial Oracle adapter persists project metadata and immutable UPKM JSON sna
 3. **Target model:** proposed destination structures, mappings and migration operations.
 
 Mappings are explicit and evidence-backed. Never collapse the three views into one schema.
+
+
+## 5.1 Current static data-lineage coverage
+
+- **Physical lineage:** declared foreign-key constraints in supported DDL snapshots, retaining source/target columns and source locators.
+- **ORM lineage:** explicit `javax.persistence` / `jakarta.persistence` entity/table/column/join annotations and relationship targets from Java ASTs.
+- **ORM/schema reconciliation:** explicit table and column names are compared with physical DDL; explicit join columns are checked against declared foreign keys. Implicit naming strategies are not guessed.
+- **Query lineage:** a bounded SELECT projection plus FROM/JOIN subset maps output columns to source columns when table and column resolution is unique. Computed expressions, functions, CTEs, subqueries, set operations, SELECT * and dynamic SQL are diagnostics or unsupported cases.
+
+These are static source declarations, not proof of actual runtime SQL, ORM provider behavior, data movement or production schema state.
 
 ## 6. Technology strategy
 
