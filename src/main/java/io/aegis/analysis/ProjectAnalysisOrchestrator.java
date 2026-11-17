@@ -31,11 +31,14 @@ public final class ProjectAnalysisOrchestrator {
         JpaMappingAnalyzer.MappingReport jpaMappings = new JpaMappingAnalyzer().analyze(projectRoot);
         JpaSchemaReconciliationAnalyzer.ReconciliationReport jpaReconciliation =
                 new JpaSchemaReconciliationAnalyzer().reconcile(model, jpaMappings);
+        SqlQueryLineageAnalyzer.LineageReport queryLineage =
+                new SqlQueryLineageAnalyzer().analyzeProject(projectRoot, model);
         List<String> diagnostics = new ArrayList<>(source.diagnostics());
         if (database != null) diagnostics.addAll(database.diagnostics());
         diagnostics.addAll(openApi.diagnostics());
         diagnostics.addAll(lineage.diagnostics());
         diagnostics.addAll(jpaMappings.diagnostics());
+        diagnostics.addAll(queryLineage.diagnostics());
 
         int tables = model.dataStores().stream().flatMap(store -> store.schemas().stream())
                 .mapToInt(schema -> schema.tables().size()).sum();
@@ -50,9 +53,10 @@ public final class ProjectAnalysisOrchestrator {
                 jpaMappings.entities().size(), jpaMappings.relationships().size(),
                 jpaReconciliation.counts().matched(), jpaReconciliation.counts().mismatched(),
                 jpaReconciliation.counts().notChecked(),
+                queryLineage.queriesAnalyzed(), queryLineage.edges().size(), queryLineage.diagnostics().size(),
                 model.apiEndpoints().size(), model.logicalEntities().size(),
                 diagnostics);
-        return new AnalysisResult(model, summary, source, database, openApi, dependencyGraph, lineage, jpaMappings, jpaReconciliation);
+        return new AnalysisResult(model, summary, source, database, openApi, dependencyGraph, lineage, jpaMappings, jpaReconciliation, queryLineage);
     }
 
     public record DatabaseProfile(String dialect, String dataStoreId, String schemaName, String databaseVersion) {
@@ -71,6 +75,7 @@ public final class ProjectAnalysisOrchestrator {
                                   int physicalTables, int physicalColumns,
                                   int foreignKeyLineageEdges, int jpaEntities, int jpaRelationships,
                                   int jpaSchemaMatches, int jpaSchemaMismatches, int jpaSchemaNotChecked,
+                                  int sqlQueriesAnalyzed, int queryLineageEdges, int queryLineageDiagnostics,
                                   int apiEndpoints, int logicalEntities, List<String> diagnostics) {
         public AnalysisSummary { diagnostics = List.copyOf(diagnostics); }
     }
@@ -82,5 +87,6 @@ public final class ProjectAnalysisOrchestrator {
                                  DependencyGraphAnalyzer.GraphReport dependencyGraph,
                                  DataLineageAnalyzer.LineageReport lineage,
                                  JpaMappingAnalyzer.MappingReport jpaMappings,
-                                 JpaSchemaReconciliationAnalyzer.ReconciliationReport jpaReconciliation) {}
+                                 JpaSchemaReconciliationAnalyzer.ReconciliationReport jpaReconciliation,
+                                 SqlQueryLineageAnalyzer.LineageReport queryLineage) {}
 }
