@@ -79,6 +79,9 @@ java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar analyze-java ./sr
 # Scan a complete Java/Maven/Gradle project tree without executing its build
 java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar analyze-project ./legacy-project ./project-intake.json
 
+# Render an architecture report from a serialized UPKM snapshot
+java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar render-report ./upkm.json ./reports/architecture.md
+
 # Verify Aegis' internal Oracle connection (credentials supplied through environment variables)
 java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar db-check
 
