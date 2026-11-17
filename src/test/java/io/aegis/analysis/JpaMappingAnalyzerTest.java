@@ -106,4 +106,39 @@ class JpaMappingAnalyzerTest {
         assertTrue(report.entities().isEmpty());
         assertTrue(report.relationships().isEmpty());
     }
+    @Test
+    void resolvesCrossPackageTargetsUsingExplicitEntityImports() throws Exception {
+        Path app = tempDir.resolve("com/app");
+        Path ref = tempDir.resolve("com/ref");
+        Path other = tempDir.resolve("com/other");
+        Files.createDirectories(app);
+        Files.createDirectories(ref);
+        Files.createDirectories(other);
+        Files.writeString(ref.resolve("Customer.java"), """
+                package com.ref;
+                import jakarta.persistence.Entity;
+                @Entity public class Customer {}
+                """);
+        Files.writeString(other.resolve("Customer.java"), """
+                package com.other;
+                import jakarta.persistence.Entity;
+                @Entity public class Customer {}
+                """);
+        Files.writeString(app.resolve("Order.java"), """
+                package com.app;
+                import jakarta.persistence.Entity;
+                import jakarta.persistence.ManyToOne;
+                import com.ref.Customer;
+                @Entity public class Order {
+                    @ManyToOne Customer customer;
+                }
+                """);
+
+        var report = new JpaMappingAnalyzer().analyze(tempDir);
+
+        assertEquals(1, report.relationships().size());
+        assertEquals("com.ref.Customer", report.relationships().getFirst().toEntity());
+        assertTrue(report.diagnostics().isEmpty());
+    }
+
 }
