@@ -40,3 +40,12 @@ The internal Oracle JDBC connection is not reused for customer databases. Custom
 The dialect registry currently recognizes Oracle, PostgreSQL, MySQL, MariaDB, SQL Server and DB2. Recognition and common-subset parsing do **not** mean full vendor grammar or migration support. The current parser handles a conservative shared CREATE TABLE/INDEX subset; vendor-specific statements (for example PL/SQL, T-SQL batches, MySQL engine clauses, partitioning, procedural objects and vendor-specific index options) remain unsupported diagnostics unless a dedicated parser rule is added and tested.
 
 The DDL migration CLI accepts an explicit source and target dialect (`plan-ddl-migration <schema.sql> <source-dialect> <target-dialect> <target-schema>`). A conservative common-subset planner is routed for every pair among the six registered dialects, while Oracle-to-PostgreSQL retains a specialized planner. This is a capability to emit review-required DDL for supported constructs, not a claim of complete vendor grammar, lossless conversion or semantic equivalence. The adapters deliberately omit incomplete tables and unsupported types, and surface defaults, identity/sequence behavior, vendor extensions and other ambiguous semantics for human review. No generated SQL is executed. The legacy Oracle-to-PostgreSQL CLI form remains accepted. There is no live customer-database connector, data-copy engine or automated data reconciliation yet. Use `list-db-dialects` to inspect the declared parser/planner capability registry. Expanding coverage requires dedicated positive, negative and edge-case fixtures, type/constraint mappings, diagnostics and validation tests.
+
+
+## Read-only customer database metadata discovery
+
+Aegis can discover relational table metadata through JDBC `DatabaseMetaData` calls. The adapter requires the JDBC connection to confirm read-only mode and reads only table, column, primary-key, imported-key and index metadata. It does not execute project SQL, DDL, stored procedures or arbitrary queries.
+
+The CLI accepts environment-variable names for the JDBC URL, user and password; secret values are never command-line arguments and are not included in output. Use a dedicated database account with catalog/metadata read privileges only. The JDBC read-only flag is a driver-level hint, not a substitute for database grants.
+
+Current metadata coverage is limited to tables, columns, primary keys, foreign keys and indexes. Views, routines, triggers, grants, check constraints, partitions and vendor-specific semantics require additional adapters.

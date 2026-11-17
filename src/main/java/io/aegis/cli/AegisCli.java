@@ -81,6 +81,7 @@ public final class AegisCli {
                 case "reconcile-jpa" -> runReconcileJpa(args);
                 case "analyze-query-lineage" -> runAnalyzeQueryLineage(args);
                 case "analyze-spring-api" -> runAnalyzeSpringApi(args);
+                case "discover-db-metadata" -> runDiscoverDatabaseMetadata(args);
                 case "render-report" -> runRenderReport(args);
                 case "analyze-openapi" -> runAnalyzeOpenApi(args);
                 case "infer-model" -> runInferModel(args);
@@ -335,6 +336,59 @@ public final class AegisCli {
                 new SqlQueryLineageAnalyzer().analyzeProject(Path.of(args[1]), model);
         System.out.println(JSON.writeValueAsString(report));
         return report.diagnostics().isEmpty() ? 0 : 3;
+    }
+
+    private static int runDiscoverDatabaseMetadata(String[] args) throws Exception {
+        if (args.length != 8) {
+            System.err.println("Usage: aegis-modernization-engine discover-db-metadata <upkm.json> <data-store-id> <jdbc-url-env> <user-env|-> <password-env|-> <schema-pattern|-> <output-upkm.json>");
+            return 2;
+        }
+        Path input = Path.of(args[1]).toAbsolutePath().normalize();
+        ProjectKnowledgeModel project = JSON.readValue(Files.readString(input, StandardCharsets.UTF_8),
+                ProjectKnowledgeModel.class);
+        String jdbcUrl = requiredEnvironmentValue(args[3]);
+        String user = optionalEnvironmentValue(args[4]);
+        String password = optionalEnvironmentValue(args[5]);
+        String schemaPattern = optionalProfileValue(args[6]);
+        java.util.Properties properties = new java.util.Properties();
+        if (user != null) properties.setProperty("user", user);
+        if (password != null) properties.setProperty("password", password);
+        DatabaseMetadataDiscovery.DiscoveryReport discovery;
+        try (java.sql.Connection connection = properties.isEmpty()
+                ? java.sql.DriverManager.getConnection(jdbcUrl)
+                : java.sql.DriverManager.getConnection(jdbcUrl, properties)) {
+            discovery = new DatabaseMetadataDiscovery().discover(connection, args[2], schemaPattern);
+        }
+
+        java.util.List<ProjectKnowledgeModel.DataStore> stores = new java.util.ArrayList<>(project.dataStores());
+        stores.removeIf(store -> store.id().equals(args[2]));
+        stores.add(discovery.dataStore());
+        ProjectKnowledgeModel merged = new ProjectKnowledgeModel(project.project(), project.artifacts(),
+                project.technologies(), project.components(), stores, project.logicalEntities(),
+                project.apiEndpoints(), project.dependencies(), project.businessRules(),
+                project.analyzedAt(), project.modelVersion());
+        Path output = Path.of(args[7]).toAbsolutePath().normalize();
+        if (input.equals(output)) throw new IllegalArgumentException("Database discovery must not overwrite its UPKM input");
+        writeWorkspaceFile(output, JSON.writeValueAsString(merged));
+        System.out.println(JSON.writeValueAsString(new DatabaseMetadataOutput(args[2],
+                discovery.dataStore().vendor(), discovery.tables(), discovery.columns(),
+                discovery.foreignKeys(), output.toString(), discovery.diagnostics())));
+        return discovery.diagnostics().isEmpty() ? 0 : 3;
+    }
+
+    private static String requiredEnvironmentValue(String name) {
+        String value = System.getenv(name);
+        if (value == null || value.isBlank())
+            throw new IllegalArgumentException("Required environment variable is not set: " + name);
+        return value;
+    }
+
+    private static String optionalEnvironmentValue(String name) {
+        if (name == null || name.isBlank() || name.equals("-")) return null;
+        String value = System.getenv(name);
+        if (value == null || value.isBlank())
+            throw new IllegalArgumentException("Environment variable is not set: " + name);
+        return value;
     }
 
     private static int runAnalyzeSpringApi(String[] args) throws Exception {
@@ -597,7 +651,8 @@ public final class AegisCli {
         return 0;
     }
 
-    public record OpenApiInventory(java.util.List<io.aegis.discovery.OpenApiProjectScanner.SpecificationSummary> specifications,                                    java.util.List<io.aegis.parser.openapi.OpenApiYamlAnalyzer.Schema> schemas,                                    java.util.List<String> diagnostics) {}     public record PlanWorkspaceOutput(String projectId, String jsonOutput, String markdownOutput, int phases) {}
+    public record OpenApiInventory(java.util.List<io.aegis.discovery.OpenApiProjectScanner.SpecificationSummary> specifications,                                    java.util.List<io.aegis.parser.openapi.OpenApiYamlAnalyzer.Schema> schemas,                                    java.util.List<String> diagnostics) {}     public record DatabaseMetadataOutput(String dataStoreId, String vendor, int tables, int columns, int foreignKeys, String output, java.util.List<String> diagnostics) {}
+    public record PlanWorkspaceOutput(String projectId, String jsonOutput, String markdownOutput, int phases) {}
     public record ReportOutput(String input, String output, int characters, String format) {}
     public record OpenApiAnalysisOutput(ProjectKnowledgeModel knowledgeModel, OpenApiYamlAnalyzer.Analysis openApi) {}
     public record JavaImportMigrationOutput(JavaImportMigrationEngine.MigrationResult migration, boolean written) {}
