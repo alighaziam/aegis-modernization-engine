@@ -65,4 +65,20 @@ class JavaSourceAnalyzerTest {
         assertFalse(holder.methods().stream().anyMatch(method -> method.name().equals("run")));
     }
 
+    @Test
+    void extractsDeclaredFieldsWithoutTreatingLocalVariablesAsFields() throws Exception {
+        var result = new JavaSourceAnalyzer().analyze("""
+                package com.acme;
+                class Holder {
+                    private Customer customer;
+                    void load() { Customer local = null; }
+                }
+                """, "Holder.java");
+        var holder = result.files().get(0).types().stream()
+                .filter(type -> type.name().equals("Holder")).findFirst().orElseThrow();
+        assertTrue(holder.fields().stream().anyMatch(field ->
+                field.name().equals("customer") && field.type().equals("Customer")));
+        assertFalse(holder.fields().stream().anyMatch(field -> field.name().equals("local")));
+    }
+
 }

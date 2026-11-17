@@ -5,6 +5,7 @@ import com.sun.source.tree.CompilationUnitTree;
 import com.sun.source.tree.ImportTree;
 import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.Tree;
+import com.sun.source.tree.VariableTree;
 import com.sun.source.util.JavacTask;
 import com.sun.source.util.SourcePositions;
 import com.sun.source.util.TreePathScanner;
@@ -89,6 +90,19 @@ public final class JavaSourceAnalyzer {
                 }
 
                 @Override
+                public Void visitVariable(VariableTree node, Void unused) {
+                    TypeBuilder owner = parents.peekLast();
+                    var parentPath = getCurrentPath() == null ? null : getCurrentPath().getParentPath();
+                    if (owner != null && parentPath != null
+                            && parentPath.getLeaf() instanceof ClassTree
+                            && node.getType() != null) {
+                        owner.fields.add(new FieldDeclaration(node.getName().toString(),
+                                node.getType().toString(), line(unit, node, positions)));
+                    }
+                    return super.visitVariable(node, unused);
+                }
+
+                @Override
                 public Void visitMethod(MethodTree node, Void unused) {
                     TypeBuilder owner = parents.peekLast();
                     if (owner != null) {
@@ -130,6 +144,7 @@ public final class JavaSourceAnalyzer {
         private final List<String> implementsTypes;
         private final long line;
         private final List<MethodDeclaration> methods = new ArrayList<>();
+        private final List<FieldDeclaration> fields = new ArrayList<>();
 
         private TypeBuilder(String qualifiedName, String name, String kind, List<String> modifiers,
                             String extendsType, List<String> implementsTypes, long line) {
@@ -144,7 +159,7 @@ public final class JavaSourceAnalyzer {
 
         private TypeDeclaration build() {
             return new TypeDeclaration(qualifiedName, name, kind, modifiers, extendsType,
-                    implementsTypes, line, methods);
+                    implementsTypes, line, methods, fields);
         }
     }
 
@@ -190,15 +205,18 @@ public final class JavaSourceAnalyzer {
     public record TypeDeclaration(String qualifiedName, String name, String kind,
                                   List<String> modifiers, String extendsType,
                                   List<String> implementsTypes, long line,
-                                  List<MethodDeclaration> methods) {
+                                  List<MethodDeclaration> methods, List<FieldDeclaration> fields) {
         public TypeDeclaration {
             modifiers = List.copyOf(modifiers);
             implementsTypes = List.copyOf(implementsTypes);
             methods = List.copyOf(methods);
+            fields = List.copyOf(fields);
         }
     }
 
     public record MethodDeclaration(String name, String parameterTypes, String returnType, long line) {}
+
+    public record FieldDeclaration(String name, String type, long line) {}
 
     public record ParseDiagnostic(String kind, String code, String message, long line, long column) {}
 }
