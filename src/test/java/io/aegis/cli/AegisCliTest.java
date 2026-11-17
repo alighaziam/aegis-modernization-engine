@@ -119,8 +119,23 @@ class AegisCliTest {
     void analyzeProjectCommandScansNestedJavaSources() throws Exception {
         Path root = tempDir.resolve("project-root");
         Files.createDirectories(root.resolve("src/main/java/com/acme"));
-        Files.writeString(root.resolve("src/main/java/com/acme/Customer.java"),
-                "package com.acme; public class Customer {}");
+        Files.writeString(root.resolve("src/main/java/com/acme/Customer.java"), """
+                package com.acme;
+                import jakarta.persistence.Entity;
+                import jakarta.persistence.Table;
+                @Entity @Table(name = "CUSTOMERS")
+                public class Customer {}
+                """);
+        Files.writeString(root.resolve("src/main/java/com/acme/Order.java"), """
+                package com.acme;
+                import jakarta.persistence.Entity;
+                import jakarta.persistence.ManyToOne;
+                import jakarta.persistence.JoinColumn;
+                @Entity public class Order {
+                    @ManyToOne @JoinColumn(name = "CUSTOMER_ID")
+                    Customer customer;
+                }
+                """);
         Path intake = tempDir.resolve("project-scan.json");
         Files.writeString(intake, """
                 {
@@ -264,6 +279,10 @@ class AegisCliTest {
         assertTrue(Files.readString(output.resolve("architecture.md")).contains("# Aegis Modernization Report"));
         assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("workspace-demo"));
         assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("\"openApiSpecifications\""));
+        assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("\"jpaEntities\": 2"));
+        assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("\"jpaRelationships\": 1"));
+        assertTrue(Files.readString(output.resolve("architecture.md")).contains("ORM / JPA mappings"));
+        assertTrue(Files.readString(output.resolve("architecture.md")).contains("com.acme.Order"));
         assertTrue(Files.readString(output.resolve("openapi-inventory.json")).contains("Customer"));
     }
 
