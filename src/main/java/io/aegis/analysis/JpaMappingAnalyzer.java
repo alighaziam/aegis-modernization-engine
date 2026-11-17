@@ -40,6 +40,8 @@ public final class JpaMappingAnalyzer {
     private static final int MAX_FILES = 10_000;
     private static final long MAX_FILE_BYTES = 1_048_576L;
     private static final long MAX_TOTAL_BYTES = 64L * 1_048_576L;
+    private static final Set<String> EXCLUDED_DIRECTORIES = Set.of(
+            ".git", ".gradle", ".idea", ".vscode", "build", "dist", "node_modules", "out", "target");
     private static final List<String> RELATIONSHIPS = List.of(
             "OneToOne", "OneToMany", "ManyToOne", "ManyToMany");
 
