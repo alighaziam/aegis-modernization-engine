@@ -28,6 +28,7 @@ class JavaSourceToKnowledgeMapperTest {
                         && d.to().equals("java.util.List")
                         && "JAVA_IMPORT".equals(d.kind())));
     }
+
     @Test
     void resolvesInternalImportsAfterAllProjectTypesAreDiscovered() throws Exception {
         var analyzer = new JavaSourceAnalyzer();
@@ -77,4 +78,39 @@ class JavaSourceToKnowledgeMapperTest {
                         && d.kind().equals("JAVA_INTERNAL_IMPORT")));
     }
 
+    @Test
+    void recordsResolvedExtendsAndImplementsRelationshipsAcrossPackages() throws Exception {
+        var analyzer = new JavaSourceAnalyzer();
+        var service = analyzer.analyze("""
+                package com.acme.application;
+                import com.acme.domain.BaseService;
+                import com.acme.domain.Auditable;
+                public class OrderService extends BaseService<String> implements Auditable {}
+                """, "OrderService.java");
+        var base = analyzer.analyze("""
+                package com.acme.domain;
+                public class BaseService<T> {}
+                """, "BaseService.java");
+        var contract = analyzer.analyze("""
+                package com.acme.domain;
+                public interface Auditable {}
+                """, "Auditable.java");
+
+        ProjectKnowledgeModel mapped = new JavaSourceToKnowledgeMapper().merge(
+                ProjectKnowledgeModel.empty(new ProjectKnowledgeModel.Project("demo", "Demo", null, null)),
+                List.of(service, base, contract));
+
+        assertTrue(mapped.dependencies().stream().anyMatch(d ->
+                d.from().equals("com.acme.application.OrderService")
+                        && d.to().equals("com.acme.domain.BaseService")
+                        && d.kind().equals("JAVA_EXTENDS")));
+        assertTrue(mapped.dependencies().stream().anyMatch(d ->
+                d.from().equals("com.acme.application.OrderService")
+                        && d.to().equals("com.acme.domain.Auditable")
+                        && d.kind().equals("JAVA_IMPLEMENTS")));
+
+        var graph = new io.aegis.analysis.DependencyGraphAnalyzer().analyze(mapped);
+        assertEquals(3, graph.nodeCount());
+        assertEquals(2, graph.internalEdgeCount());
+    }
 }
