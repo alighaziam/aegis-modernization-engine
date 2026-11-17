@@ -176,7 +176,7 @@ Major remaining milestones:
 - Security hardening, dependency vulnerability scanning, operational observability and production deployment packaging.
 - A user-facing review/workbench interface and installation/upgrade experience.
 
-A feature is complete only when its supported scope and limitations are documented and its automated tests pass in CI. Do not treat a generated plan or a passing unit test as proof of production migration safety.
+A feature is complete only when its supported scope and limitations are documented and its automated tests pass in CI. Maven Enforcer pins the supported JDK/Maven toolchain; CodeQL, dependency review and Dependabot provide repository-level security/supply-chain checks. Do not treat a generated plan or a passing unit test as proof of production migration safety.
 
 ## License
 
