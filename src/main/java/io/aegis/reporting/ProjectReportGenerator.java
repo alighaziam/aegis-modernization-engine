@@ -6,6 +6,7 @@ import io.aegis.analysis.JpaMappingAnalyzer;
 import io.aegis.analysis.JpaSchemaReconciliationAnalyzer;
 import io.aegis.analysis.SqlQueryLineageAnalyzer;
 import io.aegis.analysis.SpringApiAnalyzer;
+import io.aegis.analysis.ApiContractConsistencyAnalyzer;
 import io.aegis.domain.ProjectKnowledgeModel;
 
 import java.util.Comparator;
@@ -305,6 +306,35 @@ public final class ProjectReportGenerator {
         out.append("**Interpretation note:** This report reflects the supplied UPKM snapshot. ")
                 .append("Inferred facts are candidates, not confirmed business truth. ")
                 .append("Static discovery does not prove runtime behavior, migration safety, or production readiness.\n");
+        return out.toString();
+    }
+
+    public String generate(ProjectKnowledgeModel model, JpaMappingAnalyzer.MappingReport jpaMappings,
+                           JpaSchemaReconciliationAnalyzer.ReconciliationReport reconciliation,
+                           SqlQueryLineageAnalyzer.LineageReport queryLineage,
+                           SpringApiAnalyzer.Analysis springApi,
+                           ApiContractConsistencyAnalyzer.ConsistencyReport apiConsistency) {
+        StringBuilder out = new StringBuilder(generate(model, jpaMappings, reconciliation, queryLineage, springApi));
+        out.append("\n## Spring / OpenAPI contract consistency\n\n");
+        if (!apiConsistency.available()) {
+            out.append("_Comparison not run: both Spring and OpenAPI endpoint inventories are required._\n");
+        } else {
+            out.append("| Metric | Count |\n|---|---:|\n");
+            metric(out, "Matched routes", apiConsistency.matched());
+            metric(out, "Spring-only routes", apiConsistency.springOnly());
+            metric(out, "OpenAPI-only operations", apiConsistency.openApiOnly());
+            metric(out, "Duplicate route keys", apiConsistency.duplicateRoutes());
+            if (!apiConsistency.findings().isEmpty()) {
+                out.append("\n| Severity | Code | Method | Spring path | OpenAPI path | Finding |\n");
+                out.append("|---|---|---|---|---|---|\n");
+                for (var finding : apiConsistency.findings())
+                    out.append("| ").append(cell(finding.severity().name())).append(" | ")
+                            .append(cell(finding.code())).append(" | ").append(cell(finding.method()))
+                            .append(" | ").append(cell(finding.springPath())).append(" | ")
+                            .append(cell(finding.openApiPath())).append(" | ").append(cell(finding.message())).append(" |\n");
+            }
+        }
+        out.append("\n");
         return out.toString();
     }
 

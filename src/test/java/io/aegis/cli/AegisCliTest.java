@@ -283,9 +283,9 @@ class AegisCliTest {
                   title: Customer API
                   version: 1.0.0
                 paths:
-                  /customers:
+                  /api/customers/{customerId}:
                     get:
-                      operationId: listCustomers
+                      operationId: getCustomer
                 """);
         Path intake = tempDir.resolve("workspace-intake.json");
         Files.writeString(intake, """
