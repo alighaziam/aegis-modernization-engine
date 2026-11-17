@@ -7,6 +7,7 @@ import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -28,17 +29,23 @@ public final class DatabaseMetadataDiscovery {
 
         boolean wasReadOnly = connection.isReadOnly();
         boolean changedReadOnly = false;
+        boolean readOnlyConfirmed = wasReadOnly;
         try {
             if (!wasReadOnly) {
-                connection.setReadOnly(true);
-                changedReadOnly = connection.isReadOnly();
-                if (!changedReadOnly)
-                    throw new SQLException("JDBC driver did not confirm read-only mode; metadata discovery was stopped");
+                try {
+                    connection.setReadOnly(true);
+                    changedReadOnly = connection.isReadOnly();
+                    readOnlyConfirmed = changedReadOnly;
+                } catch (SQLFeatureNotSupportedException unsupported) {
+                    readOnlyConfirmed = false;
+                }
             }
             DatabaseMetaData metadata = connection.getMetaData();
             String vendor = metadata.getDatabaseProductName();
             String version = metadata.getDatabaseProductVersion();
             List<String> diagnostics = new ArrayList<>();
+            if (!readOnlyConfirmed)
+                diagnostics.add("JDBC_READ_ONLY_HINT_NOT_CONFIRMED: Driver did not confirm read-only mode; metadata APIs only are used, but database grants must enforce read-only access.");
             List<TableRef> discoveredTables = discoverTables(metadata, schemaPattern);
             if (discoveredTables.isEmpty())
                 diagnostics.add("NO_TABLES_DISCOVERED: No user tables matched the supplied schema filter.");
