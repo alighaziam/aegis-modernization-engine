@@ -45,6 +45,21 @@ public final class DataReconciliationPlanner {
                             + sourceColumn.name() + " (" + sourceColumn.dataType() + ") -> "
                             + mapping.target().name() + "." + targetColumn.name() + " ("
                             + targetColumn.dataType() + "); verify precision, scale and conversion semantics.");
+                if (sourceColumn.length() != null && targetColumn.length() != null
+                        && targetColumn.length() < sourceColumn.length())
+                    diagnostics.add("COLUMN_LENGTH_REDUCTION: " + mapping.source().name() + "."
+                            + sourceColumn.name() + " length " + sourceColumn.length() + " -> "
+                            + targetColumn.length() + "; validate truncation risk.");
+                if (sourceColumn.precision() != null && targetColumn.precision() != null
+                        && targetColumn.precision() < sourceColumn.precision())
+                    diagnostics.add("COLUMN_PRECISION_REDUCTION: " + mapping.source().name() + "."
+                            + sourceColumn.name() + " precision " + sourceColumn.precision() + " -> "
+                            + targetColumn.precision() + "; validate numeric overflow risk.");
+                if (sourceColumn.scale() != null && targetColumn.scale() != null
+                        && targetColumn.scale() < sourceColumn.scale())
+                    diagnostics.add("COLUMN_SCALE_REDUCTION: " + mapping.source().name() + "."
+                            + sourceColumn.name() + " scale " + sourceColumn.scale() + " -> "
+                            + targetColumn.scale() + "; validate rounding/truncation risk.");
                 if (!targetColumn.nullable()) {
                     checks.add(new Check(id(mapping, "required-" + entry.getValue()), "REQUIRED_COLUMN_NULLS",
                             "SELECT COUNT(*) AS null_count FROM " + sourceTable + " WHERE "

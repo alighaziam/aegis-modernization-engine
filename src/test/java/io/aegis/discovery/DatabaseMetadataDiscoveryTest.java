@@ -45,6 +45,11 @@ class DatabaseMetadataDiscoveryTest {
             var customers = schema.tables().stream().filter(t -> t.name().equals("CUSTOMERS")).findFirst().orElseThrow();
             assertTrue(customers.constraints().stream().anyMatch(c ->
                     c.type() == ProjectKnowledgeModel.ConstraintType.PRIMARY_KEY));
+            var idColumn = customers.columns().stream().filter(c -> c.name().equals("ID")).findFirst().orElseThrow();
+            var emailColumn = customers.columns().stream().filter(c -> c.name().equals("EMAIL")).findFirst().orElseThrow();
+            assertNotNull(idColumn.precision());
+            assertNull(idColumn.length());
+            assertEquals(255, emailColumn.length());
             assertTrue(customers.indexes().stream().anyMatch(ProjectKnowledgeModel.DbIndex::unique));
             var orders = schema.tables().stream().filter(t -> t.name().equals("ORDERS")).findFirst().orElseThrow();
             var fk = orders.constraints().stream()

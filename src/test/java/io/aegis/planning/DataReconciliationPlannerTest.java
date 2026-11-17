@@ -57,6 +57,33 @@ class DataReconciliationPlannerTest {
                 () -> new DataReconciliationPlanner().create(modelWithUnknownVendor(), "legacy", "target", null));
     }
 
+    @Test
+    void reportsStringLengthNumericPrecisionAndScaleReductions() {
+        var sourceTable = new ProjectKnowledgeModel.DbTable("PAYMENTS", List.of(
+                new ProjectKnowledgeModel.DbColumn("ID", "NUMBER", null, 18, 0, false, null, "source.sql"),
+                new ProjectKnowledgeModel.DbColumn("NAME", "VARCHAR2", 4000, null, null, true, null, "source.sql"),
+                new ProjectKnowledgeModel.DbColumn("AMOUNT", "NUMBER", null, 18, 4, false, null, "source.sql")),
+                List.of(pk("PK_PAYMENTS", "ID")), List.of(), "source.sql");
+        var targetTable = new ProjectKnowledgeModel.DbTable("PAYMENTS", List.of(
+                new ProjectKnowledgeModel.DbColumn("ID", "BIGINT", null, 19, 0, false, null, "target.sql"),
+                new ProjectKnowledgeModel.DbColumn("NAME", "VARCHAR", 255, null, null, true, null, "target.sql"),
+                new ProjectKnowledgeModel.DbColumn("AMOUNT", "NUMERIC", null, 10, 2, false, null, "target.sql")),
+                List.of(pk("PK_PAYMENTS", "ID")), List.of(), "target.sql");
+        var source = new ProjectKnowledgeModel.DataStore("legacy", "Oracle", "19c",
+                List.of(new ProjectKnowledgeModel.DbSchema("HR", List.of(sourceTable))));
+        var target = new ProjectKnowledgeModel.DataStore("target", "PostgreSQL", "16",
+                List.of(new ProjectKnowledgeModel.DbSchema("public", List.of(targetTable))));
+        var project = new ProjectKnowledgeModel(new ProjectKnowledgeModel.Project("capacity", "Capacity", null, null),
+                List.of(), List.of(), List.of(), List.of(source, target), List.of(), List.of(), List.of(),
+                List.of(), java.time.Instant.parse("2026-11-17T00:00:00Z"), "1.0");
+
+        var plan = new DataReconciliationPlanner().create(project, "legacy", "target", null);
+
+        assertTrue(plan.diagnostics().stream().anyMatch(d -> d.startsWith("COLUMN_LENGTH_REDUCTION")));
+        assertTrue(plan.diagnostics().stream().anyMatch(d -> d.startsWith("COLUMN_PRECISION_REDUCTION")));
+        assertTrue(plan.diagnostics().stream().anyMatch(d -> d.startsWith("COLUMN_SCALE_REDUCTION")));
+    }
+
     private static ProjectKnowledgeModel model() {
         var customerSource = table("CUSTOMERS", List.of(
                 col("ID", "NUMBER", false), col("EMAIL", "VARCHAR2", true)),
