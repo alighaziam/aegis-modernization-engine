@@ -309,6 +309,8 @@ class AegisCliTest {
         assertTrue(Files.readString(output.resolve("orm-mappings.json")).contains("com.acme.Order"));
         assertTrue(Files.readString(output.resolve("orm-mappings.json")).contains("CUSTOMER_ID"));
         assertTrue(Files.readString(output.resolve("jpa-schema-reconciliation.json")).contains("JPA_ENTITY_TABLE_MATCHED"));
+        assertTrue(Files.readString(output.resolve("query-lineage.json")).contains("\"queriesAnalyzed\""));
+        assertTrue(Files.readString(output.resolve("architecture.md")).contains("SQL query column lineage"));
         assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("\"jpaSchemaMatches\""));
     }
 
