@@ -283,9 +283,9 @@ class AegisCliTest {
                   title: Customer API
                   version: 1.0.0
                 paths:
-                  /customers:
+                  /api/customers/{customerId}:
                     get:
-                      operationId: listCustomers
+                      operationId: getCustomer
                 """);
         Path intake = tempDir.resolve("workspace-intake.json");
         Files.writeString(intake, """
@@ -310,7 +310,7 @@ class AegisCliTest {
                 "analyze-workspace", root.toString(), intake.toString(), output.toString(),
                 "postgresql", "main-db", "public", "16"}));
         assertTrue(Files.readString(output.resolve("upkm.json")).contains("Customer"));
-        assertTrue(Files.readString(output.resolve("upkm.json")).contains("listCustomers"));
+        assertTrue(Files.readString(output.resolve("upkm.json")).contains("getCustomer"));
         assertTrue(Files.readString(output.resolve("architecture.md")).contains("# Aegis Modernization Report"));
         assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("workspace-demo"));
         assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("\"openApiSpecifications\""));
