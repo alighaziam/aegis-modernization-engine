@@ -90,4 +90,15 @@ class SqlQueryLineageAnalyzerTest {
     private static ProjectKnowledgeModel.DbColumn column(String name) {
         return new ProjectKnowledgeModel.DbColumn(name, "TEXT", null, null, null, true, null, "schema.sql:1");
     }
+    @Test
+    void supportsQuotedIdentifiersWithoutTreatingThemAsKeywords() {
+        var report = new SqlQueryLineageAnalyzer().analyzeSelect(
+                "SELECT \"o\".\"id\" AS \"order_id\" FROM \"sales\".\"orders\" AS \"o\"",
+                "quoted.sql", 1, model());
+
+        assertEquals(1, report.edges().size());
+        assertEquals("order_id", report.edges().getFirst().outputColumn());
+        assertTrue(report.diagnostics().isEmpty());
+    }
+
 }
