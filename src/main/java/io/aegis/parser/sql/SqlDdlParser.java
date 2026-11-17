@@ -58,7 +58,7 @@ public final class SqlDdlParser {
                     replaceTable(tables, table, new Table(table.name(), table.columns(), changed, table.indexes(), table.locator()));
                     evidence.add(new EvidenceDraft("constraint:" + tableName + "." + constraint.name(), sourceName, statement.line(), "ALTER TABLE ADD", "direct", "high"));
                 }
-            } else {
+            } else if (!isNonDdlStatement(text)) {
                 diagnostics.add(diag("UNSUPPORTED_DDL", "Statement is outside the supported DDL subset: " + abbreviate(text), statement.line()));
             }
         }
@@ -70,6 +70,14 @@ public final class SqlDdlParser {
             } else diagnostics.add(diag("INDEX_TABLE_NOT_FOUND", "Index references table not found in parsed DDL: " + index.tableName(), 1));
         }
         return new ParseResult(vendor, tables, indexes, diagnostics, evidence, statements.size());
+    }
+
+    private static boolean isNonDdlStatement(String statement) {
+        String text = statement.replaceFirst("(?s)^\\\\s*(?:(?:--[^\\\\r\\\\n]*(?:\\\\r?\\\\n|$))|(?:/\\\\*.*?\\\\*/))*", "");
+        Matcher first = Pattern.compile("(?is)^([A-Z]+)\\\\b").matcher(text.trim());
+        if (!first.find()) return false;
+        return Set.of("SELECT", "WITH", "INSERT", "UPDATE", "DELETE", "MERGE",
+                "CALL", "BEGIN", "COMMIT", "ROLLBACK", "EXPLAIN").contains(first.group(1).toUpperCase(Locale.ROOT));
     }
 
     private Table parseTable(String name, String body, String source, int line,
