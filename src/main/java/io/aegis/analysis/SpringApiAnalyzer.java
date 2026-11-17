@@ -149,7 +149,7 @@ public final class SpringApiAnalyzer {
                                     for (String suffix : mapping.paths()) {
                                         for (String verb : mapping.methods()) {
                                             endpoints.add(new EndpointMapping(controller, method.getName().toString(),
-                                                    verb, joinPath(prefix, suffix), locator, line,
+                                                    verb, joinPath(prefix, suffix), sourceName, line,
                                                     annotation.getAnnotationType().toString()));
                                         }
                                     }
