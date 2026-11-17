@@ -32,6 +32,7 @@ public final class SqlQueryLineageAnalyzer {
             "WHERE", "GROUP", "ORDER", "HAVING", "LIMIT", "OFFSET", "FETCH", "UNION", "EXCEPT",
             "INTERSECT", "FOR", "RETURNING", "QUALIFY", "WINDOW");
     private static final Set<String> JOIN_WORDS = Set.of("JOIN", "INNER", "LEFT", "RIGHT", "FULL", "CROSS");
+    private static final Set<String> SET_OPERATIONS = Set.of("UNION", "EXCEPT", "INTERSECT");
 
     public LineageReport analyzeProject(Path projectRoot, ProjectKnowledgeModel model) throws IOException {
         if (projectRoot == null || model == null)
@@ -117,6 +118,9 @@ public final class SqlQueryLineageAnalyzer {
         if (projectionStart < from && isKeyword(tokens.get(projectionStart), "DISTINCT")) projectionStart++;
         List<List<Token>> projections = splitTopLevel(tokens.subList(projectionStart, from), ",");
         int fromEnd = fromEnd(tokens, from + 1);
+        if (fromEnd < tokens.size() && SET_OPERATIONS.contains(upper(tokens.get(fromEnd))))
+            diagnostics.add("UNSUPPORTED_SET_OPERATION: " + sourceName + ":" + startLine
+                    + " UNION/EXCEPT/INTERSECT query lineage is not expanded.");
         Map<String, TableRef> aliases = parseTableRefs(tokens, from + 1, fromEnd, model,
                 sourceName, startLine, diagnostics);
         if (aliases.isEmpty()) {
@@ -181,7 +185,7 @@ public final class SqlQueryLineageAnalyzer {
                 continue;
             }
             if (token.text().equals(",")) { expectTable = true; i++; continue; }
-            if (JOIN_WORDS.contains(upper(token)) || isKeyword(token, "OUTER")) {
+            if ((token.kind() == TokenKind.IDENTIFIER && JOIN_WORDS.contains(upper(token))) || isKeyword(token, "OUTER")) {
                 i++;
                 if (i < end && isKeyword(tokens.get(i), "OUTER")) i++;
                 if (i < end && isKeyword(tokens.get(i), "JOIN")) i++;
@@ -302,7 +306,7 @@ public final class SqlQueryLineageAnalyzer {
             Token token = tokens.get(i);
             if (token.text().equals("(")) depth++;
             else if (token.text().equals(")")) depth--;
-            else if (depth == 0 && (JOIN_WORDS.contains(upper(token)) || token.text().equals(","))) return i;
+            else if (depth == 0 && ((token.kind() == TokenKind.IDENTIFIER && JOIN_WORDS.contains(upper(token))) || token.text().equals(","))) return i;
         }
         return end;
     }
@@ -353,7 +357,7 @@ public final class SqlQueryLineageAnalyzer {
                 while (i < sql.length() && sql.charAt(i) != close) i++;
                 String value = sql.substring(start, Math.min(i, sql.length()));
                 if (i < sql.length()) i++;
-                result.add(new Token(value, TokenKind.IDENTIFIER));
+                result.add(new Token(value, TokenKind.QUOTED_IDENTIFIER));
                 continue;
             }
             if (Character.isLetter(c) || c == '_' || c == '$' || c == '#') {
@@ -407,9 +411,12 @@ public final class SqlQueryLineageAnalyzer {
     private static boolean hasColumn(ProjectKnowledgeModel.DbTable table, String column) {
         return table.columns().stream().anyMatch(candidate -> same(candidate.name(), column));
     }
-    private static boolean isKeyword(Token token, String keyword) { return upper(token).equals(keyword); }
+    private static boolean isKeyword(Token token, String keyword) {
+        return token.kind() == TokenKind.IDENTIFIER && upper(token).equals(keyword);
+    }
     private static String upper(Token token) { return token.text().toUpperCase(Locale.ROOT); }
     private static boolean reserved(Token token) {
+        if (token.kind() != TokenKind.IDENTIFIER) return false;
         String value = upper(token);
         return CLAUSES.contains(value) || JOIN_WORDS.contains(value) || Set.of("AS", "ON", "USING", "OUTER").contains(value);
     }
@@ -426,9 +433,9 @@ public final class SqlQueryLineageAnalyzer {
     private static String relative(Path root, Path file) { return root.relativize(file).toString().replace('\\', '/'); }
 
     public enum Status { OBSERVED }
-    public enum TokenKind { IDENTIFIER, STRING, SYMBOL }
+    public enum TokenKind { IDENTIFIER, QUOTED_IDENTIFIER, STRING, SYMBOL }
     private record Token(String text, TokenKind kind) {
-        boolean identifier() { return kind == TokenKind.IDENTIFIER; }
+        boolean identifier() { return kind == TokenKind.IDENTIFIER || kind == TokenKind.QUOTED_IDENTIFIER; }
     }
     private record Projection(String qualifier, String column, String outputName) {}
     private record ResolvedTable(String qualifiedName, ProjectKnowledgeModel.DbTable table) {}
