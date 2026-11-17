@@ -412,7 +412,7 @@ public final class AegisCli {
         if (realOutputDir.startsWith(projectRoot) || projectRoot.startsWith(realOutputDir))
             throw new IllegalArgumentException("Output directory must be separate from the source project tree");
         writeWorkspaceFile(realOutputDir.resolve("upkm.json"), JSON.writeValueAsString(result.knowledgeModel()));
-        writeWorkspaceFile(realOutputDir.resolve("architecture.md"), new ProjectReportGenerator().generate(result.knowledgeModel(), result.jpaMappings(), result.jpaReconciliation(), result.queryLineage(), result.springApi()));
+        writeWorkspaceFile(realOutputDir.resolve("architecture.md"), new ProjectReportGenerator().generate(result.knowledgeModel(), result.jpaMappings(), result.jpaReconciliation(), result.queryLineage(), result.springApi(), result.apiConsistency()));
         writeWorkspaceFile(realOutputDir.resolve("analysis-summary.json"), JSON.writeValueAsString(result.summary()));
         writeWorkspaceFile(realOutputDir.resolve("openapi-inventory.json"), JSON.writeValueAsString(
                 new OpenApiInventory(result.openApi().specifications(), result.openApi().schemas(), result.openApi().diagnostics())));
@@ -421,6 +421,8 @@ public final class AegisCli {
                 JSON.writeValueAsString(result.jpaReconciliation()));
         writeWorkspaceFile(realOutputDir.resolve("query-lineage.json"), JSON.writeValueAsString(result.queryLineage()));
         writeWorkspaceFile(realOutputDir.resolve("spring-api-inventory.json"), JSON.writeValueAsString(result.springApi()));
+        writeWorkspaceFile(realOutputDir.resolve("api-contract-consistency.json"),
+                JSON.writeValueAsString(result.apiConsistency()));
         System.out.println(JSON.writeValueAsString(result.summary()));
         return result.summary().diagnostics().isEmpty() ? 0 : 3;
     }
