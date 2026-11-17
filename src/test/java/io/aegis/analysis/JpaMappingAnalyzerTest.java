@@ -141,4 +141,28 @@ class JpaMappingAnalyzerTest {
         assertTrue(report.diagnostics().isEmpty());
     }
 
+    @Test
+    void skipsGeneratedAndVendorDirectoriesDuringBoundedWorkspaceScan() throws Exception {
+        Path source = tempDir.resolve("src/main/java/com/acme/Customer.java");
+        Path generated = tempDir.resolve("target/generated/GeneratedEntity.java");
+        Path vendored = tempDir.resolve("node_modules/vendor/VendorEntity.java");
+        Files.createDirectories(source.getParent());
+        Files.createDirectories(generated.getParent());
+        Files.createDirectories(vendored.getParent());
+        String entity = """
+                package com.acme;
+                import jakarta.persistence.Entity;
+                @Entity class %s {}
+                """;
+        Files.writeString(source, entity.formatted("Customer"));
+        Files.writeString(generated, entity.formatted("GeneratedEntity"));
+        Files.writeString(vendored, entity.formatted("VendorEntity"));
+
+        var report = new JpaMappingAnalyzer().analyze(tempDir);
+
+        assertEquals(1, report.filesScanned());
+        assertEquals(1, report.entities().size());
+        assertEquals("Customer", report.entities().getFirst().simpleName());
+    }
+
 }
