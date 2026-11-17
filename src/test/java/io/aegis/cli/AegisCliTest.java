@@ -310,7 +310,7 @@ class AegisCliTest {
                 "analyze-workspace", root.toString(), intake.toString(), output.toString(),
                 "postgresql", "main-db", "public", "16"}));
         assertTrue(Files.readString(output.resolve("upkm.json")).contains("Customer"));
-        assertTrue(Files.readString(output.resolve("upkm.json")).contains("listCustomers"));
+        assertTrue(Files.readString(output.resolve("upkm.json")).contains("getCustomer"));
         assertTrue(Files.readString(output.resolve("architecture.md")).contains("# Aegis Modernization Report"));
         assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("workspace-demo"));
         assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("\"openApiSpecifications\""));
