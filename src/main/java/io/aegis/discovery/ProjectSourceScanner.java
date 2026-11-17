@@ -49,7 +49,7 @@ public final class ProjectSourceScanner {
             }
 
             @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                 if (!attrs.isRegularFile() || Files.isSymbolicLink(file)) return FileVisitResult.CONTINUE;
                 String name = file.getFileName().toString().toLowerCase(Locale.ROOT);
                 if (name.endsWith(".java") || name.equals("pom.xml")
