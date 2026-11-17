@@ -89,7 +89,6 @@ public final class ProjectSourceScanner {
             String lower = file.getFileName().toString().toLowerCase(Locale.ROOT);
             if (lower.endsWith(".java")) {
                 javaCount++;
-                sourceContents.add(content);
                 technologyInputs.put(locator, content);
                 try {
                     JavaSourceAnalyzer.AnalysisResult analysis = new JavaSourceAnalyzer().analyze(content, locator);
