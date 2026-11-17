@@ -58,7 +58,11 @@ class JpaSchemaReconciliationAnalyzerTest {
         var model = new ProjectKnowledgeModel(
                 new ProjectKnowledgeModel.Project("demo", "Demo", null, null),
                 List.of(), List.of(), List.of(), List.of(first, second), List.of(), List.of(), List.of(), List.of(), null, "1.0");
-        var report = new JpaSchemaReconciliationAnalyzer().reconcile(model, mappings(false));
+        var order = new JpaMappingAnalyzer.EntityMapping("com.acme.Order", "Order", "com.acme", List.of(),
+                "ORDERS", null, List.of(), List.of(), "Order.java", JpaMappingAnalyzer.FactStatus.OBSERVED);
+        var mappingReport = new JpaMappingAnalyzer.MappingReport(List.of(order), List.of(),
+                List.of(), List.of(), 1, 10);
+        var report = new JpaSchemaReconciliationAnalyzer().reconcile(model, mappingReport);
 
         assertTrue(report.findings().stream().anyMatch(f ->
                 f.code().equals("JPA_ENTITY_TABLE_AMBIGUOUS") && f.status() == JpaSchemaReconciliationAnalyzer.Status.AMBIGUOUS));
