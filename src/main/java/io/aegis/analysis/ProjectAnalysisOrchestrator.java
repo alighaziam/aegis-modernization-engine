@@ -2,6 +2,7 @@ package io.aegis.analysis;
 
 import io.aegis.discovery.DatabaseProjectScanner;
 import io.aegis.discovery.ProjectSourceScanner;
+import io.aegis.discovery.OpenApiProjectScanner;
 import io.aegis.domain.ProjectKnowledgeModel;
 
 import java.io.IOException;
@@ -22,10 +23,14 @@ public final class ProjectAnalysisOrchestrator {
             model = database.knowledgeModel();
         }
 
+        OpenApiProjectScanner.ScanReport openApi = new OpenApiProjectScanner().scan(projectRoot, model);
+        model = openApi.knowledgeModel();
+
         DependencyGraphAnalyzer.GraphReport dependencyGraph = new DependencyGraphAnalyzer().analyze(model);
         DataLineageAnalyzer.LineageReport lineage = new DataLineageAnalyzer().analyze(model);
         List<String> diagnostics = new ArrayList<>(source.diagnostics());
         if (database != null) diagnostics.addAll(database.diagnostics());
+        diagnostics.addAll(openApi.diagnostics());
         diagnostics.addAll(lineage.diagnostics());
 
         int tables = model.dataStores().stream().flatMap(store -> store.schemas().stream())
@@ -36,10 +41,11 @@ public final class ProjectAnalysisOrchestrator {
                 source.javaFiles(), source.javaFilesAnalyzed(), source.declaredTypes(), source.imports(),
                 dependencyGraph.nodeCount(), dependencyGraph.internalEdgeCount(),
                 dependencyGraph.externalEdgeCount(), dependencyGraph.cycles().size(),
-                database == null ? 0 : database.filesDiscovered(), tables, columns,
-                lineage.edges().size(), model.apiEndpoints().size(), model.logicalEntities().size(),
+                database == null ? 0 : database.filesDiscovered(), openApi.specificationsAnalyzed(),
+                openApi.schemasDiscovered(), tables, columns, lineage.edges().size(),
+                model.apiEndpoints().size(), model.logicalEntities().size(),
                 diagnostics);
-        return new AnalysisResult(model, summary, source, database, dependencyGraph, lineage);
+        return new AnalysisResult(model, summary, source, database, openApi, dependencyGraph, lineage);
     }
 
     public record DatabaseProfile(String dialect, String dataStoreId, String schemaName, String databaseVersion) {
@@ -54,7 +60,8 @@ public final class ProjectAnalysisOrchestrator {
                                   int javaFilesAnalyzed, int declaredTypes, int imports,
                                   int dependencyNodes, int internalDependencyEdges,
                                   int externalDependencyEdges, int dependencyCycles,
-                                  int sqlFiles, int physicalTables, int physicalColumns,
+                                  int sqlFiles, int openApiSpecifications, int openApiSchemas,
+                                  int physicalTables, int physicalColumns,
                                   int foreignKeyLineageEdges, int apiEndpoints, int logicalEntities,
                                   List<String> diagnostics) {
         public AnalysisSummary { diagnostics = List.copyOf(diagnostics); }
@@ -63,6 +70,7 @@ public final class ProjectAnalysisOrchestrator {
     public record AnalysisResult(ProjectKnowledgeModel knowledgeModel, AnalysisSummary summary,
                                  ProjectSourceScanner.ScanReport source,
                                  DatabaseProjectScanner.ScanReport database,
+                                 OpenApiProjectScanner.ScanReport openApi,
                                  DependencyGraphAnalyzer.GraphReport dependencyGraph,
                                  DataLineageAnalyzer.LineageReport lineage) {}
 }
