@@ -257,6 +257,18 @@ class AegisCliTest {
                 @Entity @Table(name = "CUSTOMERS")
                 public class Customer {}
                 """);
+        Files.writeString(root.resolve("src/main/java/com/acme/CustomerController.java"), """
+                package com.acme;
+                import org.springframework.web.bind.annotation.RestController;
+                import org.springframework.web.bind.annotation.RequestMapping;
+                import org.springframework.web.bind.annotation.GetMapping;
+                @RestController
+                @RequestMapping("/api/customers")
+                public class CustomerController {
+                    @GetMapping("/{id}")
+                    public Customer find() { return null; }
+                }
+                """);
         Files.writeString(root.resolve("src/main/java/com/acme/Order.java"), """
                 package com.acme;
                 import jakarta.persistence.Entity;
