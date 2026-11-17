@@ -63,7 +63,7 @@ The initial Oracle adapter persists project metadata and immutable UPKM JSON sna
 - **Decision and Migration Planning Engine:** compatibility matrices, policies, quality attributes, risk and explicit approval.
 - **Transformation Workbench:** versioned deterministic recipes, diffs and reversible changes; original inputs remain immutable.
 - **Validation and Reconciliation:** compilation, static checks, tests, API comparisons, behavior characterization, data reconciliation and rollback verification.
-- **Reporting:** architecture maps, lineage, decision records, roadmaps, risk registers and validation reports. The current CLI can render a deterministic Markdown snapshot from a serialized UPKM; interactive visual maps and richer export formats remain future work.
+- **Reporting:** architecture maps, lineage, decision records, roadmaps, risk registers and validation reports. The current CLI can render a deterministic Markdown snapshot from a serialized UPKM, including declared physical foreign-key lineage; interactive visual maps and richer export formats remain future work.
 
 ## 5. Data model layers
 
