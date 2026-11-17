@@ -1,6 +1,7 @@
 package io.aegis.reporting;
 
 import io.aegis.analysis.DependencyGraphAnalyzer;
+import io.aegis.analysis.DataLineageAnalyzer;
 import io.aegis.domain.ProjectKnowledgeModel;
 
 import java.util.Comparator;
@@ -15,6 +16,7 @@ public final class ProjectReportGenerator {
         StringBuilder out = new StringBuilder();
         var project = model.project();
         var graph = new DependencyGraphAnalyzer().analyze(model);
+        var lineage = new DataLineageAnalyzer().analyze(model);
         int tableCount = model.dataStores().stream().flatMap(store -> store.schemas().stream())
                 .mapToInt(schema -> schema.tables().size()).sum();
         int columnCount = model.dataStores().stream().flatMap(store -> store.schemas().stream())
@@ -40,6 +42,7 @@ public final class ProjectReportGenerator {
         metric(out, "Data stores", model.dataStores().size());
         metric(out, "Physical tables", tableCount);
         metric(out, "Physical columns", columnCount);
+        metric(out, "Declared FK lineage edges", lineage.edges().size());
         metric(out, "Logical entities", model.logicalEntities().size());
         metric(out, "API endpoints", model.apiEndpoints().size());
         metric(out, "Business rules", model.businessRules().size());
@@ -120,6 +123,26 @@ public final class ProjectReportGenerator {
                 }
             }
         }
+
+        out.append("## Physical data lineage\n\n");
+        if (lineage.edges().isEmpty()) out.append("_No declared physical foreign-key lineage was discovered._\n");
+        else {
+            out.append("| Source table | Source columns | Target table | Target columns | Constraint | Source | Status |\n");
+            out.append("|---|---|---|---|---|---|---|\n");
+            for (var edge : lineage.edges())
+                out.append("| ").append(cell(edge.sourceTable())).append(" | ")
+                        .append(cell(String.join(", ", edge.sourceColumns()))).append(" | ")
+                        .append(cell(edge.targetTable())).append(" | ")
+                        .append(cell(String.join(", ", edge.targetColumns()))).append(" | ")
+                        .append(cell(edge.constraintName())).append(" | ")
+                        .append(cell(edge.sourceLocator())).append(" | ")
+                        .append(cell(status(edge.status()))).append(" |\n");
+        }
+        if (!lineage.diagnostics().isEmpty()) {
+            out.append("\nLineage diagnostics:\n\n");
+            for (String diagnostic : lineage.diagnostics()) out.append("- ").append(cell(diagnostic)).append("\n");
+        }
+        out.append("\n");
 
         out.append("## Logical model\n\n");
         if (model.logicalEntities().isEmpty()) out.append("_No logical entities discovered._\n");
