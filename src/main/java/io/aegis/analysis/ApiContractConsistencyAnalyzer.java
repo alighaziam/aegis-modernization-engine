@@ -39,7 +39,6 @@ public final class ApiContractConsistencyAnalyzer {
                     "Multiple OpenAPI operations declare the same HTTP method and normalized path."));
 
         int matched = 0, sourceOnly = 0, contractOnly = 0;
-        Set<ProjectKnowledgeModel.ApiEndpoint> matchedSpecs = new HashSet<>();
         for (SpringApiAnalyzer.EndpointMapping source : spring.endpoints()) {
             List<ProjectKnowledgeModel.ApiEndpoint> samePath = openApiEndpoints.stream()
                     .filter(spec -> normalizePath(spec.path()).equals(normalizePath(source.path()))).toList();
@@ -47,7 +46,6 @@ public final class ApiContractConsistencyAnalyzer {
                     .filter(spec -> methodMatches(source.httpMethod(), spec.method())).toList();
             if (!exact.isEmpty()) {
                 matched++;
-                matchedSpecs.addAll(exact);
                 findings.add(new Finding("API_ROUTE_MATCHED", Severity.INFO, source.path(),
                         exact.getFirst().path(), source.httpMethod(),
                         "Spring route matches an OpenAPI method/path contract."));
@@ -98,7 +96,7 @@ public final class ApiContractConsistencyAnalyzer {
     }
 
     private static Set<String> duplicates(List<String> values) {
-        Set<String> seen = new HashSet<>(), duplicates = new HashSet<>();
+        Set<String> seen = new HashSet<>(), duplicates = new java.util.TreeSet<>();
         for (String value : values) if (!seen.add(value)) duplicates.add(value);
         return duplicates;
     }

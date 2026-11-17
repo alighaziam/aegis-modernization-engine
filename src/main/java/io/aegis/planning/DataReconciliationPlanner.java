@@ -277,7 +277,7 @@ public final class DataReconciliationPlanner {
     private record ResolvedMapping(String sourceSchema, ProjectKnowledgeModel.DbTable source,
                                    String targetSchema, ProjectKnowledgeModel.DbTable target,
                                    Map<String, String> columns) {
-        private ResolvedMapping { columns = Map.copyOf(columns); }
+        private ResolvedMapping { columns = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(columns)); }
     }
 
     public record ColumnMapping(String sourceColumn, String targetColumn) {}
