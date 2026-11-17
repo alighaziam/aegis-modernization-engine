@@ -7,11 +7,14 @@ class DatabaseDialectRegistryTest {
     @Test
     void recognizesCommonDatabaseVendorAliases() {
         assertEquals(DatabaseDialect.ORACLE, DatabaseDialect.from("oracle"));
+        assertEquals(DatabaseDialect.ORACLE, DatabaseDialect.from("Oracle Database 19c"));
         assertEquals(DatabaseDialect.POSTGRESQL, DatabaseDialect.from("postgres"));
         assertEquals(DatabaseDialect.MYSQL, DatabaseDialect.from("mysql"));
         assertEquals(DatabaseDialect.MARIADB, DatabaseDialect.from("mariadb"));
         assertEquals(DatabaseDialect.SQLSERVER, DatabaseDialect.from("mssql"));
+        assertEquals(DatabaseDialect.SQLSERVER, DatabaseDialect.from("Microsoft SQL Server"));
         assertEquals(DatabaseDialect.DB2, DatabaseDialect.from("db2"));
+        assertEquals(DatabaseDialect.DB2, DatabaseDialect.from("IBM DB2"));
         assertEquals(DatabaseDialect.UNKNOWN, DatabaseDialect.from("unlisted-vendor"));
     }
 
