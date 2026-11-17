@@ -274,6 +274,18 @@ class AegisCliTest {
                     get:
                       operationId: listCustomers
                 """);
+        Files.writeString(root.resolve("src/main/java/com/acme/CustomerController.java"), """
+                package com.acme;
+                import org.springframework.web.bind.annotation.RestController;
+                import org.springframework.web.bind.annotation.RequestMapping;
+                import org.springframework.web.bind.annotation.GetMapping;
+                @RestController
+                @RequestMapping("/customers")
+                public class CustomerController {
+                    @GetMapping
+                    public Customer listCustomers() { return null; }
+                }
+                """);
         Path intake = tempDir.resolve("workspace-intake.json");
         Files.writeString(intake, """
                 {
@@ -304,6 +316,7 @@ class AegisCliTest {
         assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("\"jpaEntities\""));
         assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("\"jpaRelationships\""));
         assertTrue(Files.readString(output.resolve("architecture.md")).contains("ORM / JPA mappings"));
+        assertTrue(Files.readString(output.resolve("architecture.md")).contains("Spring API / OpenAPI consistency"));
         assertTrue(Files.readString(output.resolve("architecture.md")).contains("com.acme.Order"));
         assertTrue(Files.readString(output.resolve("openapi-inventory.json")).contains("Customer"));
         assertTrue(Files.readString(output.resolve("orm-mappings.json")).contains("com.acme.Order"));

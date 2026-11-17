@@ -279,6 +279,49 @@ public final class ProjectReportGenerator {
         return out.toString();
     }
 
+    public String generate(ProjectKnowledgeModel model, JpaMappingAnalyzer.MappingReport jpaMappings,
+                           JpaSchemaReconciliationAnalyzer.ReconciliationReport reconciliation,
+                           SqlQueryLineageAnalyzer.LineageReport queryLineage,
+                           SpringApiAnalyzer.Analysis springApi,
+                           ApiContractConsistencyAnalyzer.ConsistencyReport apiConsistency) {
+        StringBuilder out = new StringBuilder(generate(model, jpaMappings, reconciliation, queryLineage));
+        out.append("\n## Spring API / OpenAPI consistency\n\n");
+        if (springApi.endpoints().isEmpty()) out.append("_No explicit Spring controller routes were discovered._\n");
+        else {
+            out.append("| HTTP method | Path | Controller | Handler | Source | Line |\n");
+            out.append("|---|---|---|---|---|---:|\n");
+            for (var endpoint : springApi.endpoints())
+                out.append("| ").append(cell(endpoint.httpMethod())).append(" | ")
+                        .append(cell(endpoint.path())).append(" | ").append(cell(endpoint.controller()))
+                        .append(" | ").append(cell(endpoint.methodName())).append(" | ")
+                        .append(cell(endpoint.sourceLocator())).append(" | ").append(endpoint.line()).append(" |\n");
+        }
+        if (!apiConsistency.available()) {
+            out.append("\n_API contract comparison was not run because one endpoint inventory is empty._\n");
+        } else {
+            out.append("\n| Contract metric | Count |\n|---|---:|\n");
+            metric(out, "Matched routes", apiConsistency.matched());
+            metric(out, "Spring-only routes", apiConsistency.springOnly());
+            metric(out, "OpenAPI-only operations", apiConsistency.openApiOnly());
+            metric(out, "Duplicate routes", apiConsistency.duplicateRoutes());
+            if (!apiConsistency.findings().isEmpty()) {
+                out.append("\n| Severity | Code | Method | Spring path | OpenAPI path | Finding |\n");
+                out.append("|---|---|---|---|---|---|\n");
+                for (var finding : apiConsistency.findings())
+                    out.append("| ").append(cell(finding.severity().name())).append(" | ")
+                            .append(cell(finding.code())).append(" | ").append(cell(finding.method()))
+                            .append(" | ").append(cell(finding.springPath())).append(" | ")
+                            .append(cell(finding.openApiPath())).append(" | ").append(cell(finding.message())).append(" |\n");
+            }
+        }
+        if (!springApi.diagnostics().isEmpty()) {
+            out.append("\nSpring route discovery diagnostics:\n\n");
+            springApi.diagnostics().forEach(diagnostic -> out.append("- ").append(cell(diagnostic)).append("\n"));
+        }
+        out.append("\n");
+        return out.toString();
+    }
+
     private static void row(StringBuilder out, String key, String value) {
         out.append("| ").append(cell(key)).append(" | ").append(cell(value)).append(" |\n");
     }
