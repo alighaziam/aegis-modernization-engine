@@ -126,6 +126,18 @@ class AegisCliTest {
                 @Entity @Table(name = "CUSTOMERS")
                 public class Customer {}
                 """);
+        Files.writeString(root.resolve("src/main/java/com/acme/CustomerController.java"), """
+                package com.acme;
+                import org.springframework.web.bind.annotation.RestController;
+                import org.springframework.web.bind.annotation.RequestMapping;
+                import org.springframework.web.bind.annotation.GetMapping;
+                @RestController
+                @RequestMapping("/api/customers")
+                public class CustomerController {
+                    @GetMapping("/{id}")
+                    public Customer find() { return null; }
+                }
+                """);
         Files.writeString(root.resolve("src/main/java/com/acme/Order.java"), """
                 package com.acme;
                 import jakarta.persistence.Entity;
@@ -312,6 +324,10 @@ class AegisCliTest {
         assertTrue(Files.readString(output.resolve("query-lineage.json")).contains("\"queriesAnalyzed\""));
         assertTrue(Files.readString(output.resolve("architecture.md")).contains("SQL query column lineage"));
         assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("\"jpaSchemaMatches\""));
+        assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("\"springEndpointsDiscovered\""));
+        assertTrue(Files.readString(output.resolve("upkm.json")).contains("/api/customers/{id}"));
+        assertTrue(Files.readString(output.resolve("spring-api-inventory.json")).contains("/api/customers/{id}"));
+        assertTrue(Files.readString(output.resolve("architecture.md")).contains("Spring controller routes"));
     }
 
     @Test
@@ -441,6 +457,37 @@ class AegisCliTest {
     @Test
     void analyzeQueryLineageCommandValidatesArguments() {
         assertEquals(2, AegisCli.run(new String[]{"analyze-query-lineage"}));
+    }
+
+    @Test
+    void analyzeSpringApiCommandDiscoversControllerRoutes() throws Exception {
+        Path root = tempDir.resolve("spring-api-project");
+        Files.createDirectories(root.resolve("src/main/java/com/acme"));
+        Files.writeString(root.resolve("src/main/java/com/acme/StatusController.java"), """
+                package com.acme;
+                import org.springframework.web.bind.annotation.*;
+                @RestController
+                @RequestMapping("/api")
+                class StatusController {
+                    @GetMapping("/status")
+                    String status() { return "ok"; }
+                }
+                """);
+        java.io.PrintStream original = System.out;
+        java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream();
+        try {
+            System.setOut(new java.io.PrintStream(output));
+            assertEquals(0, AegisCli.run(new String[]{"analyze-spring-api", root.toString()}));
+        } finally {
+            System.setOut(original);
+        }
+        assertTrue(output.toString().contains("/api/status"));
+        assertTrue(output.toString().contains("GET"));
+    }
+
+    @Test
+    void analyzeSpringApiCommandValidatesArguments() {
+        assertEquals(2, AegisCli.run(new String[]{"analyze-spring-api"}));
     }
 
 }
