@@ -70,8 +70,7 @@ public final class ProjectSourceScanner {
         candidates.sort(Comparator.comparing(path -> relative(root, path)));
 
         List<JavaSourceAnalyzer.AnalysisResult> analyses = new ArrayList<>();
-        Map<String, String> buildInputs = new LinkedHashMap<>();
-        List<String> sourceContents = new ArrayList<>();
+        Map<String, String> technologyInputs = new LinkedHashMap<>();
         long totalBytes = 0;
         int javaCount = 0;
         int descriptorCount = 0;
@@ -91,6 +90,7 @@ public final class ProjectSourceScanner {
             if (lower.endsWith(".java")) {
                 javaCount++;
                 sourceContents.add(content);
+                technologyInputs.put(locator, content);
                 try {
                     JavaSourceAnalyzer.AnalysisResult analysis = new JavaSourceAnalyzer().analyze(content, locator);
                     analyses.add(analysis);
@@ -102,13 +102,13 @@ public final class ProjectSourceScanner {
                 }
             } else {
                 descriptorCount++;
-                buildInputs.put(locator, content);
+                technologyInputs.put(locator, content);
             }
         }
 
         ProjectKnowledgeModel mapped = new io.aegis.parser.java.JavaSourceToKnowledgeMapper()
                 .merge(baseModel, analyses);
-        TechnologyDetector.DetectionReport technology = new TechnologyDetector().detect(buildInputs);
+        TechnologyDetector.DetectionReport technology = new TechnologyDetector().detect(technologyInputs);
         Map<String, ProjectKnowledgeModel.Technology> discovered = new LinkedHashMap<>();
         for (ProjectKnowledgeModel.Technology item : mapped.technologies())
             discovered.putIfAbsent(item.name().toLowerCase(Locale.ROOT), item);
