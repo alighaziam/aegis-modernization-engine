@@ -119,8 +119,23 @@ class AegisCliTest {
     void analyzeProjectCommandScansNestedJavaSources() throws Exception {
         Path root = tempDir.resolve("project-root");
         Files.createDirectories(root.resolve("src/main/java/com/acme"));
-        Files.writeString(root.resolve("src/main/java/com/acme/Customer.java"),
-                "package com.acme; public class Customer {}");
+        Files.writeString(root.resolve("src/main/java/com/acme/Customer.java"), """
+                package com.acme;
+                import jakarta.persistence.Entity;
+                import jakarta.persistence.Table;
+                @Entity @Table(name = "CUSTOMERS")
+                public class Customer {}
+                """);
+        Files.writeString(root.resolve("src/main/java/com/acme/Order.java"), """
+                package com.acme;
+                import jakarta.persistence.Entity;
+                import jakarta.persistence.ManyToOne;
+                import jakarta.persistence.JoinColumn;
+                @Entity public class Order {
+                    @ManyToOne @JoinColumn(name = "CUSTOMER_ID")
+                    Customer customer;
+                }
+                """);
         Path intake = tempDir.resolve("project-scan.json");
         Files.writeString(intake, """
                 {
@@ -223,8 +238,23 @@ class AegisCliTest {
         Path root = tempDir.resolve("workspace-project");
         Files.createDirectories(root.resolve("src/main/java/com/acme"));
         Files.createDirectories(root.resolve("db"));
-        Files.writeString(root.resolve("src/main/java/com/acme/Customer.java"),
-                "package com.acme; public class Customer {}");
+        Files.writeString(root.resolve("src/main/java/com/acme/Customer.java"), """
+                package com.acme;
+                import jakarta.persistence.Entity;
+                import jakarta.persistence.Table;
+                @Entity @Table(name = "CUSTOMERS")
+                public class Customer {}
+                """);
+        Files.writeString(root.resolve("src/main/java/com/acme/Order.java"), """
+                package com.acme;
+                import jakarta.persistence.Entity;
+                import jakarta.persistence.ManyToOne;
+                import jakarta.persistence.JoinColumn;
+                @Entity public class Order {
+                    @ManyToOne @JoinColumn(name = "CUSTOMER_ID")
+                    Customer customer;
+                }
+                """);
         Files.writeString(root.resolve("db/schema.sql"),
                 "CREATE TABLE customers (id BIGINT PRIMARY KEY);");
         Files.writeString(root.resolve("openapi.yaml"), """
@@ -264,7 +294,13 @@ class AegisCliTest {
         assertTrue(Files.readString(output.resolve("architecture.md")).contains("# Aegis Modernization Report"));
         assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("workspace-demo"));
         assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("\"openApiSpecifications\""));
+        assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("\"jpaEntities\""));
+        assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("\"jpaRelationships\""));
+        assertTrue(Files.readString(output.resolve("architecture.md")).contains("ORM / JPA mappings"));
+        assertTrue(Files.readString(output.resolve("architecture.md")).contains("com.acme.Order"));
         assertTrue(Files.readString(output.resolve("openapi-inventory.json")).contains("Customer"));
+        assertTrue(Files.readString(output.resolve("orm-mappings.json")).contains("com.acme.Order"));
+        assertTrue(Files.readString(output.resolve("orm-mappings.json")).contains("CUSTOMER_ID"));
     }
 
     @Test

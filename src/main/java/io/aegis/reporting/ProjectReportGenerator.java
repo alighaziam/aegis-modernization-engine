@@ -2,6 +2,7 @@ package io.aegis.reporting;
 
 import io.aegis.analysis.DependencyGraphAnalyzer;
 import io.aegis.analysis.DataLineageAnalyzer;
+import io.aegis.analysis.JpaMappingAnalyzer;
 import io.aegis.domain.ProjectKnowledgeModel;
 
 import java.util.Comparator;
@@ -12,6 +13,10 @@ import java.util.stream.Collectors;
 /** Deterministic Markdown rendering of the evidence-backed project knowledge snapshot. */
 public final class ProjectReportGenerator {
     public String generate(ProjectKnowledgeModel model) {
+        return generate(model, null);
+    }
+
+    public String generate(ProjectKnowledgeModel model, JpaMappingAnalyzer.MappingReport jpaMappings) {
         Objects.requireNonNull(model, "model");
         StringBuilder out = new StringBuilder();
         var project = model.project();
@@ -43,6 +48,10 @@ public final class ProjectReportGenerator {
         metric(out, "Physical tables", tableCount);
         metric(out, "Physical columns", columnCount);
         metric(out, "Declared FK lineage edges", lineage.edges().size());
+        if (jpaMappings != null) {
+            metric(out, "JPA entities", jpaMappings.entities().size());
+            metric(out, "JPA relationships", jpaMappings.relationships().size());
+        }
         metric(out, "Logical entities", model.logicalEntities().size());
         metric(out, "API endpoints", model.apiEndpoints().size());
         metric(out, "Business rules", model.businessRules().size());
@@ -141,6 +150,34 @@ public final class ProjectReportGenerator {
         if (!lineage.diagnostics().isEmpty()) {
             out.append("\nLineage diagnostics:\n\n");
             for (String diagnostic : lineage.diagnostics()) out.append("- ").append(cell(diagnostic)).append("\n");
+        }
+        out.append("\n");
+
+        out.append("## ORM / JPA mappings\n\n");
+        if (jpaMappings == null || jpaMappings.entities().isEmpty())
+            out.append("_No explicit JPA entity mappings were discovered in this report run._\n");
+        else {
+            out.append("| Entity | Table | Schema | Source |\n|---|---|---|---|\n");
+            for (var entity : jpaMappings.entities())
+                out.append("| ").append(cell(entity.qualifiedName())).append(" | ")
+                        .append(cell(entity.tableName())).append(" | ").append(cell(entity.schema()))
+                        .append(" | ").append(cell(entity.sourceLocator())).append(" |\n");
+            if (!jpaMappings.relationships().isEmpty()) {
+                out.append("\n| From entity | Field | Relationship | To entity | Join columns |\n|---|---|---|---|---|\n");
+                for (var edge : jpaMappings.relationships())
+                    out.append("| ").append(cell(edge.fromEntity())).append(" | ")
+                            .append(cell(edge.fieldName())).append(" | ").append(cell(edge.kind())).append(" | ")
+                            .append(cell(edge.toEntity())).append(" | ")
+                            .append(cell(edge.joinColumns().stream().map(join -> join.fieldName() + "→"
+                                    + join.columnName() + (join.referencedColumnName().isBlank() ? ""
+                                    : "→" + join.referencedColumnName())).collect(Collectors.joining(", "))))
+                            .append(" |\n");
+            }
+        }
+        if (jpaMappings != null && !jpaMappings.diagnostics().isEmpty()) {
+            out.append("\nJPA mapping diagnostics:\n\n");
+            for (String diagnostic : jpaMappings.diagnostics())
+                out.append("- ").append(cell(diagnostic)).append("\n");
         }
         out.append("\n");
 
