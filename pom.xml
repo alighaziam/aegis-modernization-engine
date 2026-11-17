@@ -16,7 +16,7 @@
         <junit.version>5.12.2</junit.version>
         <hikari.version>6.3.0</hikari.version>
         <h2.version>2.5.252</h2.version>
-        <oracle.jdbc.version>23.9.0.25.07</oracle.jdbc.version>
+        <oracle.jdbc.version>23.26.4.0.0</oracle.jdbc.version>
     </properties>
     <dependencies>
         <dependency>
