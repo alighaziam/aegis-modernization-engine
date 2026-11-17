@@ -6,6 +6,7 @@ import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.ArrayList;
@@ -127,17 +128,29 @@ public final class DatabaseMetadataDiscovery {
         try (ResultSet rows = metadata.getColumns(table.catalog(), table.schema(), table.name(), "%")) {
             while (rows.next()) {
                 int size = rows.getInt("COLUMN_SIZE");
-                Integer length = rows.wasNull() ? null : size;
+                boolean sizePresent = !rows.wasNull();
+                int jdbcType = rows.getInt("DATA_TYPE");
+                boolean numeric = numericType(jdbcType);
+                Integer length = sizePresent && !numeric ? size : null;
+                Integer precision = sizePresent && numeric ? size : null;
                 int scaleValue = rows.getInt("DECIMAL_DIGITS");
                 Integer scale = rows.wasNull() ? null : scaleValue;
                 int nullable = rows.getInt("NULLABLE");
                 columns.add(new ProjectKnowledgeModel.DbColumn(rows.getString("COLUMN_NAME"),
-                        rows.getString("TYPE_NAME"), length, null, scale,
+                        rows.getString("TYPE_NAME"), length, precision, scale,
                         nullable != DatabaseMetaData.columnNoNulls, rows.getString("COLUMN_DEF"), locator));
             }
         }
         columns.sort(Comparator.comparing(ProjectKnowledgeModel.DbColumn::name, String.CASE_INSENSITIVE_ORDER));
         return columns;
+    }
+
+    private static boolean numericType(int type) {
+        return switch (type) {
+            case Types.TINYINT, Types.SMALLINT, Types.INTEGER, Types.BIGINT,
+                    Types.FLOAT, Types.REAL, Types.DOUBLE, Types.NUMERIC, Types.DECIMAL -> true;
+            default -> false;
+        };
     }
 
     private static List<ProjectKnowledgeModel.DbConstraint> readPrimaryKeys(DatabaseMetaData metadata,
