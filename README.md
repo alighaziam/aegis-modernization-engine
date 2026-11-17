@@ -87,6 +87,9 @@ java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar analyze-workspace
 # Render an architecture report from a serialized UPKM snapshot
 java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar render-report ./upkm.json ./reports/architecture.md
 
+# Generate a target migration plan from the discovered UPKM
+java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar plan-workspace ./aegis-output/upkm.json 25 'Spring Boot' 4.0.0 PostgreSQL React Kubernetes ./migration-plan
+
 # Verify Aegis' internal Oracle connection (credentials supplied through environment variables)
 java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar db-check
 

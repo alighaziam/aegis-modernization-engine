@@ -15,6 +15,7 @@ import io.aegis.discovery.TechnologyDetector;
 import io.aegis.discovery.ProjectSourceScanner;
 import io.aegis.discovery.DatabaseProjectScanner;
 import io.aegis.reporting.ProjectReportGenerator;
+import io.aegis.reporting.MigrationPlanReportGenerator;
 import io.aegis.parser.openapi.OpenApiYamlAnalyzer;
 import io.aegis.planning.ModernizationPlanner;
 import io.aegis.intake.IntakeService;
@@ -80,6 +81,7 @@ public final class AegisCli {
                 case "analyze-openapi" -> runAnalyzeOpenApi(args);
                 case "infer-model" -> runInferModel(args);
                 case "plan" -> runPlan(args);
+                case "plan-workspace" -> runPlanWorkspace(args);
                 case "migrate-java-imports" -> runMigrateJavaImports(args);
                 case "plan-ddl-migration" -> runPlanDdlMigration(args);
                 case "db-check" -> runDbCheck(args);
@@ -522,6 +524,35 @@ public final class AegisCli {
         return result.safeToReview() ? 0 : 3;
     }
 
+    private static int runPlanWorkspace(String[] args) throws Exception {
+        if (args.length != 9) {
+            System.err.println("Usage: aegis-modernization-engine plan-workspace <upkm.json> <java-version> <framework> <framework-version> <database> <frontend|-> <deployment|-> <output-dir>");
+            return 2;
+        }
+        Path input = Path.of(args[1]).toAbsolutePath().normalize();
+        ProjectKnowledgeModel project = JSON.readValue(Files.readString(input, StandardCharsets.UTF_8),
+                ProjectKnowledgeModel.class);
+        ModernizationPlanner.TargetProfile target = new ModernizationPlanner.TargetProfile(
+                Integer.parseInt(args[2]), args[3], args[4], args[5],
+                optionalProfileValue(args[6]), optionalProfileValue(args[7]));
+        ModernizationPlanner.Plan plan = new ModernizationPlanner().create(project, target);
+        Path outputDir = Path.of(args[8]).toAbsolutePath().normalize();
+        Files.createDirectories(outputDir);
+        Path jsonOutput = outputDir.resolve("migration-plan.json");
+        Path markdownOutput = outputDir.resolve("migration-plan.md");
+        if (input.equals(jsonOutput) || input.equals(markdownOutput))
+            throw new IllegalArgumentException("Migration plan output must not overwrite the UPKM input");
+        writeWorkspaceFile(jsonOutput, JSON.writeValueAsString(plan));
+        writeWorkspaceFile(markdownOutput, new MigrationPlanReportGenerator().generate(plan));
+        System.out.println(JSON.writeValueAsString(new PlanWorkspaceOutput(
+                project.project().id(), jsonOutput.toString(), markdownOutput.toString(), plan.steps().size())));
+        return 0;
+    }
+
+    private static String optionalProfileValue(String value) {
+        return value == null || value.isBlank() || value.equals("-") ? null : value;
+    }
+
     private static int runPlan(String[] args) throws Exception {
         if (args.length != 8) {
             System.err.println("Usage: aegis-modernization-engine plan <intake.json> <java-version> <framework> <framework-version> <database> <frontend> <deployment>");
@@ -536,7 +567,8 @@ public final class AegisCli {
         return 0;
     }
 
-    public record OpenApiInventory(java.util.List<io.aegis.discovery.OpenApiProjectScanner.SpecificationSummary> specifications,                                    java.util.List<io.aegis.parser.openapi.OpenApiYamlAnalyzer.Schema> schemas,                                    java.util.List<String> diagnostics) {}     public record ReportOutput(String input, String output, int characters, String format) {}
+    public record OpenApiInventory(java.util.List<io.aegis.discovery.OpenApiProjectScanner.SpecificationSummary> specifications,                                    java.util.List<io.aegis.parser.openapi.OpenApiYamlAnalyzer.Schema> schemas,                                    java.util.List<String> diagnostics) {}     public record PlanWorkspaceOutput(String projectId, String jsonOutput, String markdownOutput, int phases) {}
+    public record ReportOutput(String input, String output, int characters, String format) {}
     public record OpenApiAnalysisOutput(ProjectKnowledgeModel knowledgeModel, OpenApiYamlAnalyzer.Analysis openApi) {}
     public record JavaImportMigrationOutput(JavaImportMigrationEngine.MigrationResult migration, boolean written) {}
     public record DdlMigrationOutput(SqlDdlParser.ParseResult sourceAnalysis,
@@ -589,6 +621,8 @@ public final class AegisCli {
                   infer-model <intake.json> [source.java...]
                       Infer logical entities and candidate business rules; review is required.
                   plan <intake.json> <java-version> <framework> <framework-version> <database> <frontend> <deployment>
+                  plan-workspace <upkm.json> <java-version> <framework> <framework-version> <database> <frontend|-> <deployment|-> <output-dir>
+                      Generate a migration plan from the discovered workspace UPKM.
                       Generate an explainable target architecture and migration sequence.
                   plan-ddl-migration <schema.sql> <source-dialect> <target-dialect> <target-schema>
                       Plan DDL conversion only when a tested source/target adapter exists.

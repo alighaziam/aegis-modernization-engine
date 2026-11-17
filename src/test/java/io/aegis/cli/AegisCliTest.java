@@ -369,4 +369,25 @@ class AegisCliTest {
         assertEquals(2, AegisCli.run(new String[]{"reconcile-jpa"}));
     }
 
+    @Test
+    void planWorkspaceCommandBuildsMigrationPlanFromAnalyzedUpkm() throws Exception {
+        Path input = tempDir.resolve("planned-upkm.json");
+        Files.writeString(input, """
+                {
+                  "project": {"id": "plan-demo", "name": "Plan Demo", "description": null, "businessDomain": null},
+                  "artifacts": [], "technologies": [], "components": [],
+                  "dataStores": [{"id": "legacy-db", "vendor": "ORACLE", "version": "19c", "schemas": []}],
+                  "logicalEntities": [], "apiEndpoints": [], "dependencies": [], "businessRules": [],
+                  "analyzedAt": "2026-11-17T00:00:00Z", "modelVersion": "1.0"
+                }
+                """);
+        Path output = tempDir.resolve("plan-output");
+
+        assertEquals(0, AegisCli.run(new String[]{
+                "plan-workspace", input.toString(), "25", "Spring Boot", "4.0.0",
+                "PostgreSQL", "React", "Kubernetes", output.toString()}));
+        assertTrue(Files.readString(output.resolve("migration-plan.json")).contains("PostgreSQL"));
+        assertTrue(Files.readString(output.resolve("migration-plan.md")).contains("Oracle-to-PostgreSQL"));
+    }
+
 }
