@@ -6,6 +6,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.aegis.domain.ProjectKnowledgeModel;
 import io.aegis.analysis.DependencyGraphAnalyzer;
 import io.aegis.analysis.DataLineageAnalyzer;
+import io.aegis.analysis.JpaMappingAnalyzer;
 import io.aegis.analysis.JavaBehaviorAnalyzer;
 import io.aegis.analysis.LogicalModelInferer;
 import io.aegis.discovery.TechnologyDetector;
@@ -70,6 +71,7 @@ public final class AegisCli {
                 case "analyze-project" -> runAnalyzeProject(args);
                 case "analyze-database" -> runAnalyzeDatabase(args);
                 case "analyze-lineage" -> runAnalyzeLineage(args);
+                case "analyze-jpa" -> runAnalyzeJpa(args);
                 case "render-report" -> runRenderReport(args);
                 case "analyze-openapi" -> runAnalyzeOpenApi(args);
                 case "infer-model" -> runInferModel(args);
@@ -283,6 +285,16 @@ public final class AegisCli {
         ProjectKnowledgeModel model = JSON.readValue(
                 Files.readString(Path.of(args[1]), StandardCharsets.UTF_8), ProjectKnowledgeModel.class);
         DataLineageAnalyzer.LineageReport report = new DataLineageAnalyzer().analyze(model);
+        System.out.println(JSON.writeValueAsString(report));
+        return report.diagnostics().isEmpty() ? 0 : 3;
+    }
+
+    private static int runAnalyzeJpa(String[] args) throws Exception {
+        if (args.length != 2) {
+            System.err.println("Usage: aegis-modernization-engine analyze-jpa <java-source-root>");
+            return 2;
+        }
+        JpaMappingAnalyzer.MappingReport report = new JpaMappingAnalyzer().analyze(Path.of(args[1]));
         System.out.println(JSON.writeValueAsString(report));
         return report.diagnostics().isEmpty() ? 0 : 3;
     }
