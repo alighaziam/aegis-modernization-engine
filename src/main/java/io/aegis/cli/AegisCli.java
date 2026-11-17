@@ -370,6 +370,7 @@ public final class AegisCli {
         writeWorkspaceFile(realOutputDir.resolve("analysis-summary.json"), JSON.writeValueAsString(result.summary()));
         writeWorkspaceFile(realOutputDir.resolve("openapi-inventory.json"), JSON.writeValueAsString(
                 new OpenApiInventory(result.openApi().specifications(), result.openApi().schemas(), result.openApi().diagnostics())));
+        writeWorkspaceFile(realOutputDir.resolve("orm-mappings.json"), JSON.writeValueAsString(result.jpaMappings()));
         System.out.println(JSON.writeValueAsString(result.summary()));
         return result.summary().diagnostics().isEmpty() ? 0 : 3;
     }
