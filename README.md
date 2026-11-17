@@ -41,11 +41,11 @@ The repository now contains an initial executable Java implementation:
 - An OpenAPI 3.x YAML/JSON analyzer that extracts endpoint contracts and component schemas without resolving remote `$ref` values.
 - A conservative logical-model and business-rule inference pass that derives candidate entities from physical DDL and validation/guard markers from source text; all inferred facts are marked `INFERRED`.
 - A deterministic target architecture and phased migration planner driven by an explicit target profile.
-- A guarded text transformation engine with expected-occurrence/hash preconditions, SHA-256 backups and rollback conflict checks.
+- A guarded text transformation engine with expected-occurrence/hash preconditions, isolated rollback storage, symlink/path protections, non-overwriting SHA-256 backups, atomic writes and all-target rollback preflight.
 - An initial Oracle-backed internal persistence adapter for versioned UPKM snapshots, isolated behind a database-neutral repository interface.
 - A conservative cross-dialect DDL adapter matrix for the supported `CREATE TABLE` / `CREATE INDEX` subset across Oracle, PostgreSQL, MySQL, MariaDB, SQL Server and DB2. Oracle-to-PostgreSQL retains a specialized planner; other pairs use explicit common-type mappings, dialect-specific identifier quoting, and review diagnostics. Unsupported columns cause the affected table to be omitted rather than partially generated. Defaults and vendor-specific semantics are never guessed.
 - A syntax-aware Java import migration preview for a strict Jakarta namespace allowlist (`javax.persistence`, `javax.validation`, `javax.servlet`, `javax.transaction`); it uses JDK compiler parse trees, never broad text replacement, and defaults to preview-only.
-- A generated-artifact integrity validator that checks expected hashes and rejects paths escaping the project root.
+- A generated-artifact integrity validator that streams SHA-256 hashes, rejects path/symlink escapes and reports malformed or duplicate manifest entries.
 - Append-only evidence and conflict journals in `src/main/java/io/aegis/evidence`.
 - A command-line entry point for intake, DDL parsing, Java analysis and UPKM mapping in `src/main/java/io/aegis/cli`.
 
