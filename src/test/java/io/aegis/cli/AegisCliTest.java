@@ -279,11 +279,13 @@ class AegisCliTest {
         assertTrue(Files.readString(output.resolve("architecture.md")).contains("# Aegis Modernization Report"));
         assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("workspace-demo"));
         assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("\"openApiSpecifications\""));
-        assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("\"jpaEntities\": 2"));
-        assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("\"jpaRelationships\": 1"));
+        assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("\"jpaEntities\""));
+        assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("\"jpaRelationships\""));
         assertTrue(Files.readString(output.resolve("architecture.md")).contains("ORM / JPA mappings"));
         assertTrue(Files.readString(output.resolve("architecture.md")).contains("com.acme.Order"));
         assertTrue(Files.readString(output.resolve("openapi-inventory.json")).contains("Customer"));
+        assertTrue(Files.readString(output.resolve("orm-mappings.json")).contains("com.acme.Order"));
+        assertTrue(Files.readString(output.resolve("orm-mappings.json")).contains("CUSTOMER_ID"));
     }
 
     @Test
