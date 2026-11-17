@@ -8,6 +8,7 @@ import io.aegis.analysis.DependencyGraphAnalyzer;
 import io.aegis.analysis.JavaBehaviorAnalyzer;
 import io.aegis.analysis.LogicalModelInferer;
 import io.aegis.discovery.TechnologyDetector;
+import io.aegis.discovery.ProjectSourceScanner;
 import io.aegis.parser.openapi.OpenApiYamlAnalyzer;
 import io.aegis.planning.ModernizationPlanner;
 import io.aegis.intake.IntakeService;
@@ -63,6 +64,7 @@ public final class AegisCli {
                 case "analyze-java" -> runAnalyzeJava(args);
                 case "analyze-behavior" -> runAnalyzeBehavior(args);
                 case "detect-tech" -> runDetectTech(args);
+                case "analyze-project" -> runAnalyzeProject(args);
                 case "analyze-openapi" -> runAnalyzeOpenApi(args);
                 case "infer-model" -> runInferModel(args);
                 case "plan" -> runPlan(args);
@@ -265,6 +267,18 @@ public final class AegisCli {
         DependencyGraphAnalyzer.GraphReport graph = new DependencyGraphAnalyzer().analyze(mapped);
         System.out.println(JSON.writeValueAsString(new JavaAnalysisOutput(mapped, analysis, graph)));
         return analysis.diagnostics().isEmpty() ? 0 : 3;
+    }
+
+    private static int runAnalyzeProject(String[] args) throws Exception {
+        if (args.length != 3) {
+            System.err.println("Usage: aegis-modernization-engine analyze-project <project-root> <intake.json>");
+            return 2;
+        }
+        IntakeService.IntakeRequest request = IntakeService.readRequest(Path.of(args[2]));
+        ProjectKnowledgeModel project = new IntakeToKnowledgeModelMapper().map(request);
+        ProjectSourceScanner.ScanReport report = new ProjectSourceScanner().scan(Path.of(args[1]), project);
+        System.out.println(JSON.writeValueAsString(report));
+        return report.diagnostics().isEmpty() ? 0 : 3;
     }
 
     private static int runAnalyzeBehavior(String[] args) throws Exception {
