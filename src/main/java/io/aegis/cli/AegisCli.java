@@ -9,6 +9,7 @@ import io.aegis.analysis.JavaBehaviorAnalyzer;
 import io.aegis.analysis.LogicalModelInferer;
 import io.aegis.discovery.TechnologyDetector;
 import io.aegis.discovery.ProjectSourceScanner;
+import io.aegis.discovery.DatabaseProjectScanner;
 import io.aegis.parser.openapi.OpenApiYamlAnalyzer;
 import io.aegis.planning.ModernizationPlanner;
 import io.aegis.intake.IntakeService;
@@ -65,6 +66,7 @@ public final class AegisCli {
                 case "analyze-behavior" -> runAnalyzeBehavior(args);
                 case "detect-tech" -> runDetectTech(args);
                 case "analyze-project" -> runAnalyzeProject(args);
+                case "analyze-database" -> runAnalyzeDatabase(args);
                 case "analyze-openapi" -> runAnalyzeOpenApi(args);
                 case "infer-model" -> runInferModel(args);
                 case "plan" -> runPlan(args);
@@ -269,6 +271,19 @@ public final class AegisCli {
         return analysis.diagnostics().isEmpty() ? 0 : 3;
     }
 
+    private static int runAnalyzeDatabase(String[] args) throws Exception {
+        if (args.length != 6 && args.length != 7) {
+            System.err.println("Usage: aegis-modernization-engine analyze-database <project-root> <intake.json> <dialect> <store-id> <schema-name> [db-version]");
+            return 2;
+        }
+        IntakeService.IntakeRequest request = IntakeService.readRequest(Path.of(args[2]));
+        ProjectKnowledgeModel project = new IntakeToKnowledgeModelMapper().map(request);
+        DatabaseProjectScanner.ScanReport report = new DatabaseProjectScanner().scan(
+                Path.of(args[1]), project, args[3], args[4], args[5], args.length == 7 ? args[6] : null);
+        System.out.println(JSON.writeValueAsString(report));
+        return report.diagnostics().isEmpty() ? 0 : 3;
+    }
+
     private static int runAnalyzeProject(String[] args) throws Exception {
         if (args.length != 3) {
             System.err.println("Usage: aegis-modernization-engine analyze-project <project-root> <intake.json>");
@@ -432,6 +447,10 @@ public final class AegisCli {
                       Build a project UPKM and merge the parsed physical database schema.
                   analyze-java <source.java> <intake.json>
                       Extract Java declarations and imports into the project UPKM.
+                  analyze-project <project-root> <intake.json>
+                      Scan a complete Java/Maven/Gradle project tree without executing its build.
+                  analyze-database <project-root> <intake.json> <dialect> <store-id> <schema-name> [db-version]
+                      Scan SQL DDL files across a project tree and merge the supported physical schema.
                   detect-tech <pom.xml|build.gradle|source.java>...
                       Detect supported Java, Spring and library markers and versions.
                   analyze-openapi <openapi.yaml|json> <intake.json>

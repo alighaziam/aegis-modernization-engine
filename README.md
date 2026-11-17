@@ -70,6 +70,9 @@ java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar parse-ddl ./schem
 # Merge parsed DDL into the project's canonical physical data model (UPKM)
 java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar map-ddl ./project-intake.json ./schema.sql postgresql orders-db public 16
 
+# Scan all supported SQL DDL files in a project tree and merge the physical schema
+java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar analyze-database ./legacy-project ./project-intake.json postgresql orders-db public 16
+
 # Extract Java declarations/imports and merge them into the project UPKM
 java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar analyze-java ./src/main/java/com/acme/OrderService.java ./project-intake.json
 
