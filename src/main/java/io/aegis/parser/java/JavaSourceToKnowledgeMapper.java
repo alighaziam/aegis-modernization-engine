@@ -8,9 +8,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Locale;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /** Maps explicit Java declarations and import statements into the canonical project model. */
 public final class JavaSourceToKnowledgeMapper {
+    private static final Pattern TYPE_TOKEN = Pattern.compile("[A-Za-z_$][A-Za-z0-9_$.]*");
+    private static final Set<String> NON_REFERENCE_TYPES = Set.of(
+            "void", "boolean", "byte", "short", "int", "long", "char", "float", "double", "var");
 
     public ProjectKnowledgeModel merge(ProjectKnowledgeModel project,
                                        List<JavaSourceAnalyzer.AnalysisResult> analyses) {
@@ -61,6 +68,13 @@ public final class JavaSourceToKnowledgeMapper {
                             dependencies.putIfAbsent(key(dependency.from(), dependency.to(), dependency.kind()), dependency);
                         }
                     }
+                    for (String reference : referencedTypes(file, type, components.keySet())) {
+                        if (reference.equals(type.qualifiedName())) continue;
+                        ProjectKnowledgeModel.Dependency dependency = new ProjectKnowledgeModel.Dependency(
+                                type.qualifiedName(), reference, "JAVA_TYPE_REFERENCE",
+                                ProjectKnowledgeModel.FactStatus.OBSERVED, List.of());
+                        dependencies.putIfAbsent(key(dependency.from(), dependency.to(), dependency.kind()), dependency);
+                    }
                 }
             }
         }
@@ -69,6 +83,52 @@ public final class JavaSourceToKnowledgeMapper {
                 new ArrayList<>(components.values()), project.dataStores(), project.logicalEntities(),
                 project.apiEndpoints(), new ArrayList<>(dependencies.values()), project.businessRules(),
                 project.analyzedAt(), project.modelVersion());
+    }
+
+    private static List<String> referencedTypes(JavaSourceAnalyzer.SourceFile file,
+                                                 JavaSourceAnalyzer.TypeDeclaration type,
+                                                 Set<String> componentIds) {
+        List<String> expressions = new ArrayList<>();
+        if (type.extendsType() != null) expressions.add(type.extendsType());
+        expressions.addAll(type.implementsTypes());
+        type.fields().forEach(field -> expressions.add(field.type()));
+        type.methods().forEach(method -> {
+            expressions.add(method.parameterTypes());
+            expressions.add(method.returnType());
+        });
+        Set<String> targets = new LinkedHashSet<>();
+        for (String expression : expressions) {
+            if (expression == null) continue;
+            Matcher matcher = TYPE_TOKEN.matcher(expression);
+            while (matcher.find()) {
+                String resolved = resolveTypeToken(matcher.group(), file, componentIds);
+                if (resolved != null && !resolved.equals(type.qualifiedName())) targets.add(resolved);
+            }
+        }
+        return targets.stream().sorted().toList();
+    }
+
+    private static String resolveTypeToken(String token, JavaSourceAnalyzer.SourceFile file,
+                                           Set<String> componentIds) {
+        if (NON_REFERENCE_TYPES.contains(token)) return null;
+        if (componentIds.contains(token)) return token;
+        String packageName = file.packageName();
+        if (packageName != null && !packageName.isBlank()) {
+            String samePackage = packageName + "." + token;
+            if (componentIds.contains(samePackage)) return samePackage;
+        }
+        for (JavaSourceAnalyzer.ImportDeclaration imported : file.imports()) {
+            if (imported.isStatic()) continue;
+            String name = imported.qualifiedName();
+            if (name.endsWith(".*")) {
+                String candidate = name.substring(0, name.length() - 1) + token;
+                if (componentIds.contains(candidate)) return candidate;
+            } else if (name.substring(name.lastIndexOf('.') + 1).equals(token)
+                    && componentIds.contains(name)) return name;
+        }
+        List<String> matches = componentIds.stream()
+                .filter(id -> id.endsWith("." + token)).sorted().toList();
+        return matches.size() == 1 ? matches.get(0) : null;
     }
 
     private static List<String> resolveInternalTargets(JavaSourceAnalyzer.ImportDeclaration imported,

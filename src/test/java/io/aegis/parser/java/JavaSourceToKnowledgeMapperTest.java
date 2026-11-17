@@ -77,4 +77,21 @@ class JavaSourceToKnowledgeMapperTest {
                         && d.kind().equals("JAVA_INTERNAL_IMPORT")));
     }
 
+    @Test
+    void doesNotGuessWhenSimpleTypeNameIsAmbiguousAcrossPackages() throws Exception {
+        var analyzer = new JavaSourceAnalyzer();
+        var consumer = analyzer.analyze("""
+                package com.acme.app;
+                class Consumer { private Customer customer; }
+                """, "Consumer.java");
+        var one = analyzer.analyze("package com.acme.one; class Customer {}", "CustomerOne.java");
+        var two = analyzer.analyze("package com.acme.two; class Customer {}", "CustomerTwo.java");
+        var model = new JavaSourceToKnowledgeMapper().merge(
+                ProjectKnowledgeModel.empty(new ProjectKnowledgeModel.Project("demo", "Demo", null, null)),
+                List.of(consumer, one, two));
+
+        assertFalse(model.dependencies().stream().anyMatch(d ->
+                d.from().equals("com.acme.app.Consumer") && d.kind().equals("JAVA_TYPE_REFERENCE")));
+    }
+
 }
