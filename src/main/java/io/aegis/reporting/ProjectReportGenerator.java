@@ -1,6 +1,8 @@
 package io.aegis.reporting;
 
 import io.aegis.analysis.DependencyGraphAnalyzer;
+import io.aegis.analysis.SpringApiAnalyzer;
+import io.aegis.analysis.ApiContractConsistencyAnalyzer;
 import io.aegis.analysis.DataLineageAnalyzer;
 import io.aegis.analysis.JpaMappingAnalyzer;
 import io.aegis.analysis.JpaSchemaReconciliationAnalyzer;
