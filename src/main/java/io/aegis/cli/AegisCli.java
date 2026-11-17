@@ -10,6 +10,7 @@ import io.aegis.analysis.LogicalModelInferer;
 import io.aegis.discovery.TechnologyDetector;
 import io.aegis.discovery.ProjectSourceScanner;
 import io.aegis.discovery.DatabaseProjectScanner;
+import io.aegis.reporting.ProjectReportGenerator;
 import io.aegis.parser.openapi.OpenApiYamlAnalyzer;
 import io.aegis.planning.ModernizationPlanner;
 import io.aegis.intake.IntakeService;
@@ -67,6 +68,7 @@ public final class AegisCli {
                 case "detect-tech" -> runDetectTech(args);
                 case "analyze-project" -> runAnalyzeProject(args);
                 case "analyze-database" -> runAnalyzeDatabase(args);
+                case "render-report" -> runRenderReport(args);
                 case "analyze-openapi" -> runAnalyzeOpenApi(args);
                 case "infer-model" -> runInferModel(args);
                 case "plan" -> runPlan(args);
@@ -271,6 +273,38 @@ public final class AegisCli {
         return analysis.diagnostics().isEmpty() ? 0 : 3;
     }
 
+    private static int runRenderReport(String[] args) throws Exception {
+        if (args.length != 3) {
+            System.err.println("Usage: aegis-modernization-engine render-report <upkm.json> <report.md>");
+            return 2;
+        }
+        Path input = Path.of(args[1]).toAbsolutePath().normalize();
+        Path output = Path.of(args[2]).toAbsolutePath().normalize();
+        if (input.equals(output)) {
+            System.err.println("Report output must not overwrite the UPKM input.");
+            return 2;
+        }
+        ProjectKnowledgeModel model = JSON.readValue(Files.readString(input, StandardCharsets.UTF_8),
+                ProjectKnowledgeModel.class);
+        String markdown = new ProjectReportGenerator().generate(model);
+        Path parent = output.getParent();
+        if (parent != null) Files.createDirectories(parent);
+        Path temp = Files.createTempFile(parent, ".aegis-report-", ".tmp");
+        try {
+            Files.writeString(temp, markdown, StandardCharsets.UTF_8);
+            try {
+                Files.move(temp, output, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (java.nio.file.AtomicMoveNotSupportedException unsupported) {
+                Files.move(temp, output, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            Files.deleteIfExists(temp);
+        }
+        System.out.println(JSON.writeValueAsString(new ReportOutput(input.toString(), output.toString(),
+                markdown.length(), "MARKDOWN")));
+        return 0;
+    }
+
     private static int runAnalyzeDatabase(String[] args) throws Exception {
         if (args.length != 6 && args.length != 7) {
             System.err.println("Usage: aegis-modernization-engine analyze-database <project-root> <intake.json> <dialect> <store-id> <schema-name> [db-version]");
@@ -412,6 +446,7 @@ public final class AegisCli {
         return 0;
     }
 
+    public record ReportOutput(String input, String output, int characters, String format) {}
     public record OpenApiAnalysisOutput(ProjectKnowledgeModel knowledgeModel, OpenApiYamlAnalyzer.Analysis openApi) {}
     public record JavaImportMigrationOutput(JavaImportMigrationEngine.MigrationResult migration, boolean written) {}
     public record DdlMigrationOutput(SqlDdlParser.ParseResult sourceAnalysis,
@@ -451,6 +486,8 @@ public final class AegisCli {
                       Scan a complete Java/Maven/Gradle project tree without executing its build.
                   analyze-database <project-root> <intake.json> <dialect> <store-id> <schema-name> [db-version]
                       Scan SQL DDL files across a project tree and merge the supported physical schema.
+                  render-report <upkm.json> <report.md>
+                      Render a deterministic Markdown architecture and modernization report.
                   detect-tech <pom.xml|build.gradle|source.java>...
                       Detect supported Java, Spring and library markers and versions.
                   analyze-openapi <openapi.yaml|json> <intake.json>

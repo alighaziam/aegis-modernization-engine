@@ -79,6 +79,9 @@ java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar analyze-java ./sr
 # Scan a complete Java/Maven/Gradle project tree without executing its build
 java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar analyze-project ./legacy-project ./project-intake.json
 
+# Render an architecture report from a serialized UPKM snapshot
+java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar render-report ./upkm.json ./reports/architecture.md
+
 # Verify Aegis' internal Oracle connection (credentials supplied through environment variables)
 java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar db-check
 
@@ -88,8 +91,11 @@ java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar store-intake ./pr
 # Load the latest stored snapshot
 java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar load-model <project-id>
 
-# Generate a review-required PostgreSQL DDL plan from supported Oracle CREATE TABLE statements
-java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar plan-ddl-migration ./schema-oracle.sql oracle app
+# Generate a review-required Oracle-to-PostgreSQL DDL plan from the supported common subset
+java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar plan-ddl-migration ./schema-oracle.sql oracle postgresql app
+
+# List registered database dialects and declared parser/planner capabilities
+java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar list-db-dialects
 
 # Preview only the explicitly supported javax-to-jakarta import migrations
 java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar migrate-java-imports ./src/main/java/com/acme/OrderService.java
@@ -125,7 +131,7 @@ A GitHub Actions workflow runs Java 25 compilation, tests, executable-JAR packag
 
 ## Status
 
-The project has an initial runtime foundation, not a production-ready modernization engine. Intake, evidence journaling, a canonical model, limited SQL/Java/OpenAPI analysis, technology discovery, migration planning, guarded transformations, rollback primitives and CLI are implemented at an early stage. Semantic and cross-module source analysis, additional language parsers, richer logical data-model inference, production-grade code/schema transformations and broad integration tests remain future milestones. Aegis internal persistence is Oracle Database 19c+; see `docs/Persistence-and-Database-Portability.md` and `db/oracle/V001__aegis_core.sql`. Set `AEGIS_ORACLE_JDBC_URL`, `AEGIS_ORACLE_USER`, and `AEGIS_ORACLE_PASSWORD`; optional pool settings are documented. The internal Oracle adapter stores project metadata and append-only UPKM snapshots. It does not yet move artifact objects or evidence/conflict journals into Oracle. Customer source/target databases remain independent and selectable per project; Oracle is not a forced target. The Oracle/PostgreSQL planner does not execute SQL, migrate data, convert PL/SQL, sequences, triggers, indexes or every Oracle datatype; generated DDL is a review artifact, not an executable migration guarantee. The current Java import migrator is intentionally limited to four package roots and must not be interpreted as a complete Java EE/Jakarta migration. Supported syntax and technology/version matrices must be expanded only with executable tests.
+Aegis is an executable engineering foundation, but it is not yet a production-ready modernization product. Implemented capabilities include validated intake and immutable artifact registration; a canonical UPKM; file-backed evidence/conflict journals plus explicit Oracle persistence adapters for project snapshots, artifacts and append-only evidence/conflict events; limited SQL DDL, Java AST, Java behavior and OpenAPI analysis; technology detection; dependency-cycle analysis; candidate logical-model inference; deterministic target planning; guarded text transformations and rollback checks; a conservative cross-dialect DDL planner; a syntax-aware Jakarta import preview; artifact integrity validation; and a CLI. The database registry recognizes Oracle, PostgreSQL, MySQL, MariaDB, SQL Server and DB2. All registered source/target pairs have a conservative common-subset planner path, with a specialized Oracle-to-PostgreSQL planner; this is not full vendor grammar or semantic equivalence. Generated DDL is review-only and is never executed. The parser and adapters intentionally reject or flag unsupported syntax and types. Oracle Database 19c+ is required only for Aegis' optional persistent storage; set `AEGIS_ORACLE_JDBC_URL`, `AEGIS_ORACLE_USER`, and `AEGIS_ORACLE_PASSWORD` as environment variables. Database migrations V001, V002 and V003 must be applied explicitly; the application does not alter production schemas automatically. Major remaining milestones include semantic/cross-module source analysis, broader language and framework coverage, richer logical data and lineage analysis, executable and reversible code/data migration workflows, isolated integration testing against real database engines, comprehensive validation/reconciliation, reporting and a user interface. The Java import migrator remains limited to four explicit `javax` package roots and does not guarantee framework or behavioral compatibility.
 
 ## License
 

@@ -170,4 +170,22 @@ class AegisCliTest {
                 "postgresql", "main-db", "public", "16"}));
     }
 
+    @Test
+    void renderReportCommandWritesMarkdownWithoutOverwritingInput() throws Exception {
+        Path input = tempDir.resolve("upkm.json");
+        Files.writeString(input, """
+                {
+                  "project": {"id": "demo", "name": "Demo", "description": null, "businessDomain": null},
+                  "artifacts": [], "technologies": [], "components": [], "dataStores": [],
+                  "logicalEntities": [], "apiEndpoints": [], "dependencies": [], "businessRules": [],
+                  "analyzedAt": "2026-11-17T00:00:00Z", "modelVersion": "1.0"
+                }
+                """);
+        Path output = tempDir.resolve("reports/architecture.md");
+
+        assertEquals(0, AegisCli.run(new String[]{"render-report", input.toString(), output.toString()}));
+        assertTrue(Files.readString(output).contains("# Aegis Modernization Report"));
+        assertEquals(2, AegisCli.run(new String[]{"render-report", input.toString(), input.toString()}));
+    }
+
 }
