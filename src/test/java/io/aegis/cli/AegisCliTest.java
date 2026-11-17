@@ -188,4 +188,34 @@ class AegisCliTest {
         assertEquals(2, AegisCli.run(new String[]{"render-report", input.toString(), input.toString()}));
     }
 
+    @Test
+    void analyzeLineageCommandReadsUpkmAndReportsDeclaredForeignKeys() throws Exception {
+        Path input = tempDir.resolve("lineage-upkm.json");
+        Files.writeString(input, """
+                {
+                  "project": {"id": "demo", "name": "Demo", "description": null, "businessDomain": null},
+                  "artifacts": [], "technologies": [], "components": [],
+                  "dataStores": [{
+                    "id": "legacy", "vendor": "ORACLE", "version": "19c",
+                    "schemas": [{
+                      "name": "SALES",
+                      "tables": [{
+                        "name": "ORDERS", "columns": [],
+                        "constraints": [{
+                          "name": "FK_ORDERS_CUSTOMER", "type": "FOREIGN_KEY",
+                          "columns": ["CUSTOMER_ID"], "referencedTable": "CUSTOMER",
+                          "referencedColumns": ["ID"], "sourceLocator": "schema.sql:1"
+                        }],
+                        "indexes": [], "sourceLocator": "schema.sql:1"
+                      }]
+                    }]
+                  }],
+                  "logicalEntities": [], "apiEndpoints": [], "dependencies": [], "businessRules": [],
+                  "analyzedAt": "2026-11-17T00:00:00Z", "modelVersion": "1.0"
+                }
+                """);
+
+        assertEquals(0, AegisCli.run(new String[]{"analyze-lineage", input.toString()}));
+    }
+
 }
