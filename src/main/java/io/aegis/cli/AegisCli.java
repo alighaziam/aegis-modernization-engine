@@ -20,6 +20,8 @@ import io.aegis.discovery.DatabaseMetadataDiscovery;
 import io.aegis.reporting.ProjectReportGenerator;
 import io.aegis.reporting.MigrationPlanReportGenerator;
 import io.aegis.reporting.DataReconciliationReportGenerator;
+import io.aegis.reporting.DataReconciliationExecutionReportGenerator;
+import io.aegis.validation.DataReconciliationExecutor;
 import io.aegis.parser.openapi.OpenApiYamlAnalyzer;
 import io.aegis.planning.ModernizationPlanner;
 import io.aegis.planning.DataReconciliationPlanner;
@@ -91,6 +93,7 @@ public final class AegisCli {
                 case "plan" -> runPlan(args);
                 case "plan-workspace" -> runPlanWorkspace(args);
                 case "plan-data-reconciliation" -> runPlanDataReconciliation(args);
+                case "validate-data-reconciliation" -> runValidateDataReconciliation(args);
                 case "migrate-java-imports" -> runMigrateJavaImports(args);
                 case "plan-ddl-migration" -> runPlanDdlMigration(args);
                 case "db-check" -> runDbCheck(args);
@@ -612,6 +615,64 @@ public final class AegisCli {
         return result.safeToReview() ? 0 : 3;
     }
 
+    private static int runValidateDataReconciliation(String[] args) throws Exception {
+        if (args.length != 12 && args.length != 13) {
+            System.err.println("Usage: aegis-modernization-engine validate-data-reconciliation <upkm.json> <source-store-id> <target-store-id> <mapping.json|-> <source-url-env> <source-user-env|-> <source-password-env|-> <target-url-env> <target-user-env|-> <target-password-env|-> <output-dir> [--approve-diagnostics]");
+            return 2;
+        }
+        boolean approveDiagnostics = args.length == 13 && "--approve-diagnostics".equals(args[12]);
+        if (args.length == 13 && !approveDiagnostics)
+            throw new IllegalArgumentException("The only optional flag is --approve-diagnostics");
+        Path input = Path.of(args[1]).toAbsolutePath().normalize();
+        ProjectKnowledgeModel model = JSON.readValue(Files.readString(input, StandardCharsets.UTF_8),
+                ProjectKnowledgeModel.class);
+        DataReconciliationPlanner.MappingDocument mapping = args[4].equals("-") ? null
+                : JSON.readValue(Files.readString(Path.of(args[4]), StandardCharsets.UTF_8),
+                        DataReconciliationPlanner.MappingDocument.class);
+        DataReconciliationPlanner.Plan plan = new DataReconciliationPlanner()
+                .create(model, args[2], args[3], mapping);
+        DataReconciliationExecutor executor = new DataReconciliationExecutor();
+        DataReconciliationExecutor.ExecutionReport execution;
+        if (!plan.diagnostics().isEmpty() && !approveDiagnostics) {
+            execution = executor.execute(plan, null, null, false);
+        } else {
+            String sourceUrl = requiredEnvironmentValue(args[5]);
+            String sourceUser = optionalEnvironmentValue(args[6]);
+            String sourcePassword = optionalEnvironmentValue(args[7]);
+            String targetUrl = requiredEnvironmentValue(args[8]);
+            String targetUser = optionalEnvironmentValue(args[9]);
+            String targetPassword = optionalEnvironmentValue(args[10]);
+            try (java.sql.Connection source = openJdbcConnection(sourceUrl, sourceUser, sourcePassword);
+                 java.sql.Connection target = openJdbcConnection(targetUrl, targetUser, targetPassword)) {
+                execution = executor.execute(plan, source, target, approveDiagnostics);
+            }
+        }
+
+        Path outputDir = Path.of(args[11]).toAbsolutePath().normalize();
+        Files.createDirectories(outputDir);
+        writeWorkspaceFile(outputDir.resolve("data-reconciliation-plan.json"), JSON.writeValueAsString(plan));
+        writeWorkspaceFile(outputDir.resolve("data-reconciliation-plan.md"),
+                new DataReconciliationReportGenerator().generate(plan));
+        writeWorkspaceFile(outputDir.resolve("data-reconciliation-execution.json"), JSON.writeValueAsString(execution));
+        writeWorkspaceFile(outputDir.resolve("data-reconciliation-execution.md"),
+                new DataReconciliationExecutionReportGenerator().generate(execution));
+        System.out.println(JSON.writeValueAsString(new DataReconciliationExecutionOutput(
+                plan.sourceStoreId(), plan.targetStoreId(), execution.executed(), execution.passed(),
+                execution.checksExecuted(), execution.results().size(), outputDir.toString(),
+                execution.diagnostics())));
+        if (!execution.executed()) return 3;
+        return execution.passed() ? 0 : 1;
+    }
+
+    private static java.sql.Connection openJdbcConnection(String url, String user, String password)
+            throws java.sql.SQLException {
+        java.util.Properties properties = new java.util.Properties();
+        if (user != null) properties.setProperty("user", user);
+        if (password != null) properties.setProperty("password", password);
+        return properties.isEmpty() ? java.sql.DriverManager.getConnection(url)
+                : java.sql.DriverManager.getConnection(url, properties);
+    }
+
     private static int runPlanDataReconciliation(String[] args) throws Exception {
         if (args.length != 6) {
             System.err.println("Usage: aegis-modernization-engine plan-data-reconciliation <upkm.json> <source-store-id> <target-store-id> <mapping.json|-> <output-dir>");
@@ -682,7 +743,8 @@ public final class AegisCli {
         return 0;
     }
 
-    public record OpenApiInventory(java.util.List<io.aegis.discovery.OpenApiProjectScanner.SpecificationSummary> specifications,                                    java.util.List<io.aegis.parser.openapi.OpenApiYamlAnalyzer.Schema> schemas,                                    java.util.List<String> diagnostics) {}     public record DataReconciliationOutput(String sourceStoreId, String targetStoreId, int mappedTables, int checks, int diagnostics, String jsonOutput, String markdownOutput) {}
+    public record OpenApiInventory(java.util.List<io.aegis.discovery.OpenApiProjectScanner.SpecificationSummary> specifications,                                    java.util.List<io.aegis.parser.openapi.OpenApiYamlAnalyzer.Schema> schemas,                                    java.util.List<String> diagnostics) {}     public record DataReconciliationExecutionOutput(String sourceStoreId, String targetStoreId, boolean executed, boolean passed, int checksExecuted, int checkResults, String outputDirectory, java.util.List<String> diagnostics) {}
+    public record DataReconciliationOutput(String sourceStoreId, String targetStoreId, int mappedTables, int checks, int diagnostics, String jsonOutput, String markdownOutput) {}
     public record DatabaseMetadataOutput(String dataStoreId, String vendor, int tables, int columns, int foreignKeys, String output, java.util.List<String> diagnostics) {}
     public record PlanWorkspaceOutput(String projectId, String jsonOutput, String markdownOutput, int phases) {}
     public record ReportOutput(String input, String output, int characters, String format) {}
@@ -750,6 +812,8 @@ public final class AegisCli {
                       Generate a migration plan from the discovered workspace UPKM.
                   plan-data-reconciliation <upkm.json> <source-store-id> <target-store-id> <mapping.json|-> <output-dir>
                       Generate read-only SQL validation checks for row counts, keys, required columns and foreign-key orphans.
+                  validate-data-reconciliation <upkm.json> <source-store-id> <target-store-id> <mapping.json|-> <source-url-env> <source-user-env|-> <source-password-env|-> <target-url-env> <target-user-env|-> <target-password-env|-> <output-dir> [--approve-diagnostics]
+                      Execute only generated scalar SELECT checks with read-only database accounts; diagnostics require explicit approval.
                       Generate an explainable target architecture and migration sequence.
                   plan-ddl-migration <schema.sql> <source-dialect> <target-dialect> <target-schema>
                       Plan DDL conversion only when a tested source/target adapter exists.
