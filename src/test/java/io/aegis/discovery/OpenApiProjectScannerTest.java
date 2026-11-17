@@ -53,6 +53,8 @@ class OpenApiProjectScannerTest {
         assertEquals(2, report.specificationsAnalyzed());
         assertEquals(2, report.endpointsDiscovered());
         assertEquals(1, report.schemasDiscovered());
+        assertEquals("Customer", report.schemas().get(0).name());
+        assertEquals("contracts/customers.yaml", report.specifications().get(0).sourceName());
         assertEquals(2, report.knowledgeModel().apiEndpoints().size());
         assertTrue(report.diagnostics().isEmpty());
     }

@@ -63,6 +63,8 @@ public final class OpenApiProjectScanner {
         int analyzed = 0;
         int endpointCount = 0;
         int schemaCount = 0;
+        List<OpenApiYamlAnalyzer.Schema> schemas = new ArrayList<>();
+        List<SpecificationSummary> specifications = new ArrayList<>();
         for (Path file : candidates) {
             String locator = relative(root, file);
             long size = Files.size(file);
@@ -81,12 +83,15 @@ public final class OpenApiProjectScanner {
             analyzed++;
             endpointCount += analysis.endpoints().size();
             schemaCount += analysis.schemas().size();
+            schemas.addAll(analysis.schemas());
+            specifications.add(new SpecificationSummary(locator, analysis.openApiVersion(), analysis.title(),
+                    analysis.endpoints().size(), analysis.schemas().size()));
             model = analyzer.merge(model, analysis);
             for (String diagnostic : analysis.diagnostics())
                 diagnostics.add(locator + ": " + diagnostic);
         }
         return new ScanReport(model, candidates.size(), analyzed, endpointCount, schemaCount,
-                bytesRead, diagnostics,
+                bytesRead, specifications, schemas, diagnostics,
                 List.of("Only files containing an OpenAPI version marker are parsed.",
                         "External and remote $ref values are not fetched or resolved.",
                         "OpenAPI schemas are reported as contract inventory; they are not promoted to confirmed logical business entities.",
@@ -99,13 +104,19 @@ public final class OpenApiProjectScanner {
 
     public record ScanReport(ProjectKnowledgeModel knowledgeModel, int candidatesDiscovered,
                              int specificationsAnalyzed, int endpointsDiscovered,
-                             int schemasDiscovered, long bytesRead, List<String> diagnostics,
+                             int schemasDiscovered, long bytesRead, List<SpecificationSummary> specifications,
+                             List<OpenApiYamlAnalyzer.Schema> schemas, List<String> diagnostics,
                              List<String> limitations) {
         public ScanReport {
+            specifications = List.copyOf(specifications);
+            schemas = List.copyOf(schemas);
             diagnostics = List.copyOf(diagnostics);
             limitations = List.copyOf(limitations);
         }
     }
+
+    public record SpecificationSummary(String sourceName, String version, String title,
+                                        int endpoints, int schemas) {}
 
     private static final class ScanLimitException extends IOException {
         private ScanLimitException(String message) { super(message); }

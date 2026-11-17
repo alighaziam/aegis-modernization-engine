@@ -356,6 +356,8 @@ public final class AegisCli {
         writeWorkspaceFile(realOutputDir.resolve("upkm.json"), JSON.writeValueAsString(result.knowledgeModel()));
         writeWorkspaceFile(realOutputDir.resolve("architecture.md"), new ProjectReportGenerator().generate(result.knowledgeModel()));
         writeWorkspaceFile(realOutputDir.resolve("analysis-summary.json"), JSON.writeValueAsString(result.summary()));
+        writeWorkspaceFile(realOutputDir.resolve("openapi-inventory.json"), JSON.writeValueAsString(
+                new OpenApiInventory(result.openApi().specifications(), result.openApi().schemas(), result.openApi().diagnostics())));
         System.out.println(JSON.writeValueAsString(result.summary()));
         return result.summary().diagnostics().isEmpty() ? 0 : 3;
     }
@@ -502,7 +504,7 @@ public final class AegisCli {
         return 0;
     }
 
-    public record ReportOutput(String input, String output, int characters, String format) {}
+    public record OpenApiInventory(java.util.List<io.aegis.discovery.OpenApiProjectScanner.SpecificationSummary> specifications,                                    java.util.List<io.aegis.parser.openapi.OpenApiYamlAnalyzer.Schema> schemas,                                    java.util.List<String> diagnostics) {}     public record ReportOutput(String input, String output, int characters, String format) {}
     public record OpenApiAnalysisOutput(ProjectKnowledgeModel knowledgeModel, OpenApiYamlAnalyzer.Analysis openApi) {}
     public record JavaImportMigrationOutput(JavaImportMigrationEngine.MigrationResult migration, boolean written) {}
     public record DdlMigrationOutput(SqlDdlParser.ParseResult sourceAnalysis,
