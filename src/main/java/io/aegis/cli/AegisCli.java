@@ -447,6 +447,10 @@ public final class AegisCli {
                       Build a project UPKM and merge the parsed physical database schema.
                   analyze-java <source.java> <intake.json>
                       Extract Java declarations and imports into the project UPKM.
+                  analyze-project <project-root> <intake.json>
+                      Scan a complete Java/Maven/Gradle project tree without executing its build.
+                  analyze-database <project-root> <intake.json> <dialect> <store-id> <schema-name> [db-version]
+                      Scan SQL DDL files across a project tree and merge the supported physical schema.
                   detect-tech <pom.xml|build.gradle|source.java>...
                       Detect supported Java, Spring and library markers and versions.
                   analyze-openapi <openapi.yaml|json> <intake.json>
