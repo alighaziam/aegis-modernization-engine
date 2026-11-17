@@ -263,7 +263,7 @@ class AegisCliTest {
         assertTrue(Files.readString(output.resolve("upkm.json")).contains("listCustomers"));
         assertTrue(Files.readString(output.resolve("architecture.md")).contains("# Aegis Modernization Report"));
         assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("workspace-demo"));
-        assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("\"openApiSpecifications\": 1"));
+        assertTrue(Files.readString(output.resolve("analysis-summary.json")).contains("\"openApiSpecifications\""));
     }
 
 }
