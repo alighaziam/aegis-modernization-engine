@@ -1,0 +1,68 @@
+package io.aegis.analysis;
+
+import io.aegis.discovery.DatabaseProjectScanner;
+import io.aegis.discovery.ProjectSourceScanner;
+import io.aegis.domain.ProjectKnowledgeModel;
+
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+
+/** Coordinates the current deterministic source, DDL, dependency and physical-lineage analysis stages. */
+public final class ProjectAnalysisOrchestrator {
+    public AnalysisResult analyze(Path projectRoot, ProjectKnowledgeModel intakeModel,
+                                  DatabaseProfile databaseProfile) throws IOException {
+        ProjectSourceScanner.ScanReport source = new ProjectSourceScanner().scan(projectRoot, intakeModel);
+        ProjectKnowledgeModel model = source.knowledgeModel();
+        DatabaseProjectScanner.ScanReport database = null;
+        if (databaseProfile != null) {
+            database = new DatabaseProjectScanner().scan(projectRoot, model, databaseProfile.dialect(),
+                    databaseProfile.dataStoreId(), databaseProfile.schemaName(), databaseProfile.databaseVersion());
+            model = database.knowledgeModel();
+        }
+
+        DependencyGraphAnalyzer.GraphReport dependencyGraph = new DependencyGraphAnalyzer().analyze(model);
+        DataLineageAnalyzer.LineageReport lineage = new DataLineageAnalyzer().analyze(model);
+        List<String> diagnostics = new ArrayList<>(source.diagnostics());
+        if (database != null) diagnostics.addAll(database.diagnostics());
+        diagnostics.addAll(lineage.diagnostics());
+
+        int tables = model.dataStores().stream().flatMap(store -> store.schemas().stream())
+                .mapToInt(schema -> schema.tables().size()).sum();
+        int columns = model.dataStores().stream().flatMap(store -> store.schemas().stream())
+                .flatMap(schema -> schema.tables().stream()).mapToInt(table -> table.columns().size()).sum();
+        AnalysisSummary summary = new AnalysisSummary(model.project().id(), model.project().name(),
+                source.javaFiles(), source.javaFilesAnalyzed(), source.declaredTypes(), source.imports(),
+                dependencyGraph.nodeCount(), dependencyGraph.internalEdgeCount(),
+                dependencyGraph.externalEdgeCount(), dependencyGraph.cycles().size(),
+                database == null ? 0 : database.filesDiscovered(), tables, columns,
+                lineage.edges().size(), model.apiEndpoints().size(), model.logicalEntities().size(),
+                diagnostics);
+        return new AnalysisResult(model, summary, source, database, dependencyGraph, lineage);
+    }
+
+    public record DatabaseProfile(String dialect, String dataStoreId, String schemaName, String databaseVersion) {
+        public DatabaseProfile {
+            if (blank(dialect) || blank(dataStoreId) || blank(schemaName))
+                throw new IllegalArgumentException("Database dialect, data store ID and schema name are required");
+        }
+        private static boolean blank(String value) { return value == null || value.isBlank(); }
+    }
+
+    public record AnalysisSummary(String projectId, String projectName, int javaFiles,
+                                  int javaFilesAnalyzed, int declaredTypes, int imports,
+                                  int dependencyNodes, int internalDependencyEdges,
+                                  int externalDependencyEdges, int dependencyCycles,
+                                  int sqlFiles, int physicalTables, int physicalColumns,
+                                  int foreignKeyLineageEdges, int apiEndpoints, int logicalEntities,
+                                  List<String> diagnostics) {
+        public AnalysisSummary { diagnostics = List.copyOf(diagnostics); }
+    }
+
+    public record AnalysisResult(ProjectKnowledgeModel knowledgeModel, AnalysisSummary summary,
+                                 ProjectSourceScanner.ScanReport source,
+                                 DatabaseProjectScanner.ScanReport database,
+                                 DependencyGraphAnalyzer.GraphReport dependencyGraph,
+                                 DataLineageAnalyzer.LineageReport lineage) {}
+}

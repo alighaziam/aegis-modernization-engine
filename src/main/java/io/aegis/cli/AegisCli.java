@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.aegis.domain.ProjectKnowledgeModel;
 import io.aegis.analysis.DependencyGraphAnalyzer;
+import io.aegis.analysis.ProjectAnalysisOrchestrator;
 import io.aegis.analysis.DataLineageAnalyzer;
 import io.aegis.analysis.JavaBehaviorAnalyzer;
 import io.aegis.analysis.LogicalModelInferer;
@@ -68,6 +69,7 @@ public final class AegisCli {
                 case "analyze-behavior" -> runAnalyzeBehavior(args);
                 case "detect-tech" -> runDetectTech(args);
                 case "analyze-project" -> runAnalyzeProject(args);
+                case "analyze-workspace" -> runAnalyzeWorkspace(args);
                 case "analyze-database" -> runAnalyzeDatabase(args);
                 case "analyze-lineage" -> runAnalyzeLineage(args);
                 case "render-report" -> runRenderReport(args);
@@ -332,6 +334,46 @@ public final class AegisCli {
         return report.diagnostics().isEmpty() ? 0 : 3;
     }
 
+    private static int runAnalyzeWorkspace(String[] args) throws Exception {
+        if (args.length != 4 && args.length != 7 && args.length != 8) {
+            System.err.println("Usage: aegis-modernization-engine analyze-workspace <project-root> <intake.json> <output-dir> [dialect store-id schema-name [db-version]]");
+            return 2;
+        }
+        Path projectRoot = Path.of(args[1]).toRealPath();
+        IntakeService.IntakeRequest request = IntakeService.readRequest(Path.of(args[2]));
+        ProjectKnowledgeModel base = new IntakeToKnowledgeModelMapper().map(request);
+        ProjectAnalysisOrchestrator.DatabaseProfile database = args.length >= 7
+                ? new ProjectAnalysisOrchestrator.DatabaseProfile(args[4], args[5], args[6],
+                        args.length == 8 ? args[7] : null)
+                : null;
+        var result = new ProjectAnalysisOrchestrator().analyze(projectRoot, base, database);
+
+        Path outputDir = Path.of(args[3]).toAbsolutePath().normalize();
+        Files.createDirectories(outputDir);
+        Path realOutputDir = outputDir.toRealPath();
+        if (realOutputDir.startsWith(projectRoot) || projectRoot.startsWith(realOutputDir))
+            throw new IllegalArgumentException("Output directory must be separate from the source project tree");
+        writeWorkspaceFile(realOutputDir.resolve("upkm.json"), JSON.writeValueAsString(result.knowledgeModel()));
+        writeWorkspaceFile(realOutputDir.resolve("architecture.md"), new ProjectReportGenerator().generate(result.knowledgeModel()));
+        writeWorkspaceFile(realOutputDir.resolve("analysis-summary.json"), JSON.writeValueAsString(result.summary()));
+        System.out.println(JSON.writeValueAsString(result.summary()));
+        return result.summary().diagnostics().isEmpty() ? 0 : 3;
+    }
+
+    private static void writeWorkspaceFile(Path output, String content) throws Exception {
+        Path temp = Files.createTempFile(output.getParent(), ".aegis-workspace-", ".tmp");
+        try {
+            Files.writeString(temp, content, StandardCharsets.UTF_8);
+            try {
+                Files.move(temp, output, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (java.nio.file.AtomicMoveNotSupportedException unsupported) {
+                Files.move(temp, output, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            Files.deleteIfExists(temp);
+        }
+    }
+
     private static int runAnalyzeProject(String[] args) throws Exception {
         if (args.length != 3) {
             System.err.println("Usage: aegis-modernization-engine analyze-project <project-root> <intake.json>");
@@ -498,6 +540,8 @@ public final class AegisCli {
                       Extract Java declarations and imports into the project UPKM.
                   analyze-project <project-root> <intake.json>
                       Scan a complete Java/Maven/Gradle project tree without executing its build.
+                  analyze-workspace <project-root> <intake.json> <output-dir> [dialect store-id schema-name [db-version]]
+                      Run the end-to-end deterministic source, optional DDL, graph and lineage pipeline.
                   analyze-database <project-root> <intake.json> <dialect> <store-id> <schema-name> [db-version]
                       Scan SQL DDL files across a project tree and merge the supported physical schema.
                   analyze-lineage <upkm.json>
