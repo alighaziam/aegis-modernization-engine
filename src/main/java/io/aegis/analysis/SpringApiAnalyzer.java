@@ -111,7 +111,7 @@ public final class SpringApiAnalyzer {
         var compiler = ToolProvider.getSystemJavaCompiler();
         if (compiler == null) throw new IllegalStateException("A JDK compiler is required");
         var diagnostics = new DiagnosticCollector<JavaFileObject>();
-        JavaFileObject file = new SimpleJavaFileObject(URI.create("string:///" + sourceName.replace('\\', '/')),
+        JavaFileObject file = new SimpleJavaFileObject(URI.create("string:///Source.java"),
                 JavaFileObject.Kind.SOURCE) {
             @Override public CharSequence getCharContent(boolean ignoreEncodingErrors) { return source; }
         };
