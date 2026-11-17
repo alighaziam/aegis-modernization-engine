@@ -5,6 +5,7 @@ import io.aegis.analysis.DataLineageAnalyzer;
 import io.aegis.analysis.JpaMappingAnalyzer;
 import io.aegis.analysis.JpaSchemaReconciliationAnalyzer;
 import io.aegis.analysis.SqlQueryLineageAnalyzer;
+import io.aegis.analysis.SpringApiAnalyzer;
 import io.aegis.domain.ProjectKnowledgeModel;
 
 import java.util.Comparator;
@@ -30,6 +31,13 @@ public final class ProjectReportGenerator {
     public String generate(ProjectKnowledgeModel model, JpaMappingAnalyzer.MappingReport jpaMappings,
                            JpaSchemaReconciliationAnalyzer.ReconciliationReport reconciliation,
                            SqlQueryLineageAnalyzer.LineageReport queryLineage) {
+        return generate(model, jpaMappings, reconciliation, queryLineage, null);
+    }
+
+    public String generate(ProjectKnowledgeModel model, JpaMappingAnalyzer.MappingReport jpaMappings,
+                           JpaSchemaReconciliationAnalyzer.ReconciliationReport reconciliation,
+                           SqlQueryLineageAnalyzer.LineageReport queryLineage,
+                           SpringApiAnalyzer.Analysis springApi) {
         Objects.requireNonNull(model, "model");
         StringBuilder out = new StringBuilder();
         var project = model.project();
@@ -74,6 +82,10 @@ public final class ProjectReportGenerator {
             metric(out, "SQL queries analyzed", queryLineage.queriesAnalyzed());
             metric(out, "SQL query lineage edges", queryLineage.edges().size());
             metric(out, "SQL query lineage diagnostics", queryLineage.diagnostics().size());
+        }
+        if (springApi != null) {
+            metric(out, "Spring controller files", springApi.filesScanned());
+            metric(out, "Spring endpoints discovered", springApi.endpoints().size());
         }
         metric(out, "Logical entities", model.logicalEntities().size());
         metric(out, "API endpoints", model.apiEndpoints().size());
@@ -230,6 +242,23 @@ public final class ProjectReportGenerator {
         if (queryLineage != null && !queryLineage.diagnostics().isEmpty()) {
             out.append("\nSQL query lineage diagnostics:\n\n");
             for (String diagnostic : queryLineage.diagnostics())
+                out.append("- ").append(cell(diagnostic)).append("\n");
+        }
+        out.append("\n");
+        out.append("## Spring controller routes\n\n");
+        if (springApi == null || springApi.endpoints().isEmpty())
+            out.append("_No explicit Spring controller routes were discovered._\n");
+        else {
+            out.append("| HTTP method | Path | Controller | Handler | Source | Line |\n|---|---|---|---|---|---:|\n");
+            for (var endpoint : springApi.endpoints())
+                out.append("| ").append(cell(endpoint.httpMethod())).append(" | ")
+                        .append(cell(endpoint.path())).append(" | ").append(cell(endpoint.controller())).append(" | ")
+                        .append(cell(endpoint.methodName())).append(" | ").append(cell(endpoint.sourceLocator())).append(" | ")
+                        .append(endpoint.line()).append(" |\n");
+        }
+        if (springApi != null && !springApi.diagnostics().isEmpty()) {
+            out.append("\nSpring API diagnostics:\n\n");
+            for (String diagnostic : springApi.diagnostics())
                 out.append("- ").append(cell(diagnostic)).append("\n");
         }
         out.append("\n");

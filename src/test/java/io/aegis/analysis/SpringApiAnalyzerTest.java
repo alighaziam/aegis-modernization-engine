@@ -112,4 +112,23 @@ class SpringApiAnalyzerTest {
                 """, "OrdinaryService.java");
         assertTrue(result.endpoints().isEmpty());
     }
+    @Test
+    void reportsConstantRouteExpressionsInsteadOfGuessingTheirValue() {
+        String source = """
+                package com.acme.api;
+                import org.springframework.web.bind.annotation.*;
+                @RestController
+                @RequestMapping(ApiPaths.BASE)
+                class CustomerController {
+                    @GetMapping("/customers")
+                    String customers() { return "ok"; }
+                }
+                """;
+
+        var result = new SpringApiAnalyzer().parse(source, "CustomerController.java");
+
+        assertTrue(result.endpoints().isEmpty());
+        assertTrue(result.diagnostics().stream().anyMatch(d -> d.startsWith("UNRESOLVED_SPRING_CLASS_PATH:")));
+    }
+
 }

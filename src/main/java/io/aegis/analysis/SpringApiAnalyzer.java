@@ -110,14 +110,15 @@ public final class SpringApiAnalyzer {
         if (source == null || sourceName == null) throw new IllegalArgumentException("source and sourceName are required");
         var compiler = ToolProvider.getSystemJavaCompiler();
         if (compiler == null) throw new IllegalStateException("A JDK compiler is required");
-        var diagnostics = new DiagnosticCollector<JavaFileObject>();
-        JavaFileObject file = new SimpleJavaFileObject(URI.create("string:///" + sourceName.replace('\\', '/')),
+        var collector = new DiagnosticCollector<JavaFileObject>();
+        List<String> parseDiagnostics = new ArrayList<>();
+        JavaFileObject file = new SimpleJavaFileObject(URI.create("string:///Source.java"),
                 JavaFileObject.Kind.SOURCE) {
             @Override public CharSequence getCharContent(boolean ignoreEncodingErrors) { return source; }
         };
         List<EndpointMapping> endpoints = new ArrayList<>();
         try {
-            JavacTask task = (JavacTask) compiler.getTask(null, null, diagnostics,
+            JavacTask task = (JavacTask) compiler.getTask(null, null, collector,
                     List.of("-proc:none", "-Xlint:none"), null, List.of(file));
             CompilationUnitTree unit = task.parse().iterator().next();
             Trees trees = Trees.instance(task);
@@ -131,8 +132,20 @@ public final class SpringApiAnalyzer {
                     if (isController(node.getModifiers().getAnnotations(), imports)) {
                         String controller = packageName.isBlank() ? node.getSimpleName().toString()
                                 : packageName + "." + node.getSimpleName();
-                        List<String> prefixes = mappingPaths(node.getModifiers().getAnnotations(), imports, "RequestMapping");
-                        if (prefixes.isEmpty()) prefixes = List.of("");
+                        List<String> prefixes = List.of("");
+                        AnnotationTree classMapping = node.getModifiers().getAnnotations().stream()
+                                .filter(annotation -> simpleName(annotation).equals("RequestMapping")
+                                        && isSpringAnnotation(annotation, imports, "RequestMapping"))
+                                .findFirst().orElse(null);
+                        if (classMapping != null) {
+                            Mapping classRoute = mapping(classMapping, imports, "RequestMapping");
+                            if (classRoute.pathUnresolved()) {
+                                parseDiagnostics.add("UNRESOLVED_SPRING_CLASS_PATH: " + sourceName
+                                        + " class-level RequestMapping path is not a string literal.");
+                                return super.visitClass(node, unused);
+                            }
+                            prefixes = classRoute.paths();
+                        }
                         boolean restController = hasAnnotation(node.getModifiers().getAnnotations(), imports, "RestController");
                         boolean controllerResponseBody = hasAnnotation(node.getModifiers().getAnnotations(), imports, "ResponseBody");
                         for (var member : node.getMembers()) {
@@ -145,6 +158,11 @@ public final class SpringApiAnalyzer {
                                         || !isSpringAnnotation(annotation, imports, simple)) continue;
                                 Mapping mapping = mapping(annotation, imports, simple);
                                 long line = line(unit, method, positions);
+                                if (mapping.pathUnresolved() || mapping.methodUnresolved()) {
+                                    parseDiagnostics.add("UNRESOLVED_SPRING_METHOD_MAPPING: " + sourceName + ":" + line
+                                            + " path or HTTP method uses a non-literal expression.");
+                                    continue;
+                                }
                                 for (String prefix : prefixes) {
                                     for (String suffix : mapping.paths()) {
                                         for (String verb : mapping.methods()) {
@@ -163,11 +181,11 @@ public final class SpringApiAnalyzer {
         } catch (IOException failure) {
             throw new IllegalArgumentException("Could not parse Java source " + sourceName, failure);
         }
-        for (var diagnostic : diagnostics.getDiagnostics()) {
+        for (var diagnostic : collector.getDiagnostics()) {
             if (diagnostic.getKind() == javax.tools.Diagnostic.Kind.ERROR)
-                return new ParseResult(endpoints, List.of("JAVA_PARSE_ERROR: " + sourceName + ": " + diagnostic.getMessage(Locale.ROOT)));
+                parseDiagnostics.add("JAVA_PARSE_ERROR: " + sourceName + ": " + diagnostic.getMessage(Locale.ROOT));
         }
-        return new ParseResult(endpoints, List.of());
+        return new ParseResult(endpoints, parseDiagnostics);
     }
 
     private static boolean isController(List<? extends AnnotationTree> annotations, Set<String> imports) {
@@ -195,12 +213,6 @@ public final class SpringApiAnalyzer {
         return dot < 0 ? type : type.substring(dot + 1);
     }
 
-    private static List<String> mappingPaths(List<? extends AnnotationTree> annotations, Set<String> imports, String expected) {
-        return annotations.stream().filter(annotation -> simpleName(annotation).equals(expected)
-                        && isSpringAnnotation(annotation, imports, expected))
-                .findFirst().map(annotation -> mapping(annotation, imports, expected).paths()).orElse(List.of());
-    }
-
     private static Mapping mapping(AnnotationTree annotation, Set<String> imports, String simple) {
         List<String> paths = new ArrayList<>();
         List<String> methods = new ArrayList<>();
@@ -212,6 +224,8 @@ public final class SpringApiAnalyzer {
             case "DeleteMapping" -> methods.add("DELETE");
             default -> methods.add("ANY");
         }
+        boolean pathUnresolved = false;
+        boolean methodUnresolved = false;
         for (ExpressionTree argument : annotation.getArguments()) {
             String name = null;
             ExpressionTree value = argument;
@@ -220,28 +234,46 @@ public final class SpringApiAnalyzer {
                 value = assignment.getExpression();
             }
             if ("value".equals(name) || "path".equals(name) || name == null && paths.isEmpty())
-                collectStrings(value, paths);
+                pathUnresolved |= !collectStrings(value, paths);
             if ("method".equals(name)) {
                 methods.clear();
-                collectMethods(value, methods);
+                methodUnresolved |= !collectMethods(value, methods);
             }
         }
         if (paths.isEmpty()) paths.add("");
         if (methods.isEmpty()) methods.add("ANY");
-        return new Mapping(paths.stream().distinct().toList(), methods.stream().distinct().toList());
+        return new Mapping(paths.stream().distinct().toList(), methods.stream().distinct().toList(),
+                pathUnresolved, methodUnresolved);
     }
 
-    private static void collectStrings(ExpressionTree value, List<String> output) {
-        if (value instanceof LiteralTree literal && literal.getValue() instanceof String string) output.add(string);
-        else if (value instanceof NewArrayTree array && array.getInitializers() != null)
-            array.getInitializers().forEach(item -> collectStrings(item, output));
+    private static boolean collectStrings(ExpressionTree value, List<String> output) {
+        if (value instanceof LiteralTree literal && literal.getValue() instanceof String string) {
+            output.add(string);
+            return true;
+        }
+        if (value instanceof NewArrayTree array && array.getInitializers() != null) {
+            boolean complete = true;
+            for (ExpressionTree item : array.getInitializers()) complete &= collectStrings(item, output);
+            return complete;
+        }
+        return false;
     }
 
-    private static void collectMethods(ExpressionTree value, List<String> output) {
-        if (value instanceof MemberSelectTree member) output.add(member.getIdentifier().toString().toUpperCase(Locale.ROOT));
-        else if (value instanceof IdentifierTree identifier) output.add(identifier.getName().toString().toUpperCase(Locale.ROOT));
-        else if (value instanceof NewArrayTree array && array.getInitializers() != null)
-            array.getInitializers().forEach(item -> collectMethods(item, output));
+    private static boolean collectMethods(ExpressionTree value, List<String> output) {
+        if (value instanceof MemberSelectTree member) {
+            output.add(member.getIdentifier().toString().toUpperCase(Locale.ROOT));
+            return true;
+        }
+        if (value instanceof IdentifierTree identifier) {
+            output.add(identifier.getName().toString().toUpperCase(Locale.ROOT));
+            return true;
+        }
+        if (value instanceof NewArrayTree array && array.getInitializers() != null) {
+            boolean complete = true;
+            for (ExpressionTree item : array.getInitializers()) complete &= collectMethods(item, output);
+            return complete;
+        }
+        return false;
     }
 
     private static String joinPath(String prefix, String suffix) {
@@ -268,5 +300,6 @@ public final class SpringApiAnalyzer {
                           long bytesRead, List<String> limitations) {
         public Analysis { endpoints = List.copyOf(endpoints); diagnostics = List.copyOf(diagnostics); limitations = List.copyOf(limitations); }
     }
-    private record Mapping(List<String> paths, List<String> methods) {}
+    private record Mapping(List<String> paths, List<String> methods,
+                           boolean pathUnresolved, boolean methodUnresolved) {}
 }
