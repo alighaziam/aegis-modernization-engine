@@ -50,7 +50,7 @@ The repository now contains an initial executable Java implementation:
 - A read-only JDBC metadata adapter that discovers tables, columns, primary keys, foreign keys and indexes without executing application SQL; JDBC URL and credentials are supplied through environment variables.
 - A conservative logical-model and business-rule inference pass that derives candidate entities from physical DDL and validation/guard markers from source text; all inferred facts are marked `INFERRED`.
 - A deterministic target architecture and phased migration planner driven by an explicit target profile.
-- A source/target data-reconciliation planner that generates row-count, primary-key, required-column and foreign-key orphan checks, supports explicit table/column mappings, and flags type/length/precision/scale reductions. It emits SQL but never executes it.
+- A source/target data-reconciliation planner that generates row-count, primary-key, required-column and foreign-key orphan checks, supports explicit table/column mappings, and flags type/length/precision/scale reductions. Its guarded executor runs only generated scalar COUNT SELECT statements and requires explicit approval when diagnostics exist.
 - A source/target data-reconciliation planner that generates non-executed row-count, primary-key, required-column and foreign-key orphan validation SQL, with explicit mapping support for renamed tables/columns.
 - A guarded text transformation engine with expected-occurrence/hash preconditions, isolated rollback storage, symlink/path protections, non-overwriting SHA-256 backups, atomic writes and all-target rollback preflight.
 - An initial Oracle-backed internal persistence adapter for versioned UPKM snapshots, isolated behind a database-neutral repository interface.

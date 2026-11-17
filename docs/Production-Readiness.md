@@ -33,4 +33,4 @@ Aegis is an engineering tool with deliberately bounded parsers and transformatio
 
 ## Current limitation
 
-Aegis generates reviewable plans and bounded transformations. It does not yet provide a universal, fully automated, production-safe migration executor. Human review and external validation remain mandatory.
+Aegis generates reviewable plans and bounded transformations. A guarded reconciliation executor can run only planner-generated scalar COUNT SELECT statements; it does not execute DDL or data writes. It does not yet provide a universal, fully automated, production-safe migration executor. Human review and external validation remain mandatory.

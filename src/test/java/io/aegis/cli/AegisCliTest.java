@@ -530,6 +530,15 @@ class AegisCliTest {
         assertTrue(Files.readString(output.resolve("data-reconciliation-plan.md"))
                 .contains("No SQL in this plan has been executed"));
         assertTrue(Files.readString(output.resolve("data-reconciliation-plan.md")).contains("COLUMN_TYPE_DIFFERENCE"));
+
+        Path validationOutput = tempDir.resolve("reconciliation-validation-output");
+        assertEquals(3, AegisCli.run(new String[]{
+                "validate-data-reconciliation", input.toString(), "legacy", "target", "-",
+                "UNSET_SOURCE_URL", "-", "-", "UNSET_TARGET_URL", "-", "-", validationOutput.toString()}));
+        assertTrue(Files.readString(validationOutput.resolve("data-reconciliation-execution.json"))
+                .contains("DIAGNOSTICS_REQUIRE_APPROVAL"));
+        assertTrue(Files.readString(validationOutput.resolve("data-reconciliation-execution.md"))
+                .contains("DIAGNOSTICS_REQUIRE_APPROVAL"));
     }
 
 }
