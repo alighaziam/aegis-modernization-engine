@@ -85,11 +85,12 @@ public final class SqlDdlParser {
                 text = text.substring(close + 2).stripLeading();
             } else break;
         }
-        Matcher first = Pattern.compile("(?i)^([A-Z]+)\\\\b").matcher(text);
-        if (!first.find()) return false;
+        int end = 0;
+        while (end < text.length() && Character.isLetter(text.charAt(end))) end++;
+        if (end == 0) return false;
+        String keyword = text.substring(0, end).toUpperCase(Locale.ROOT);
         return Set.of("SELECT", "WITH", "INSERT", "UPDATE", "DELETE", "MERGE",
-                "CALL", "BEGIN", "COMMIT", "ROLLBACK", "EXPLAIN")
-                .contains(first.group(1).toUpperCase(Locale.ROOT));
+                "CALL", "BEGIN", "COMMIT", "ROLLBACK", "EXPLAIN").contains(keyword);
     }
 
     private Table parseTable(String name, String body, String source, int line,
