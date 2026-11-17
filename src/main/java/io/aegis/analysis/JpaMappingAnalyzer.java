@@ -5,8 +5,6 @@ import com.sun.source.tree.AssignmentTree;
 import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.CompilationUnitTree;
 import com.sun.source.tree.ExpressionTree;
-import com.sun.source.tree.MemberSelectTree;
-import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.ModifiersTree;
 import com.sun.source.tree.NewArrayTree;
 import com.sun.source.tree.Tree;
@@ -38,7 +36,7 @@ public final class JpaMappingAnalyzer {
     private static final int MAX_FILES = 10_000;
     private static final long MAX_FILE_BYTES = 1_048_576L;
     private static final long MAX_TOTAL_BYTES = 64L * 1_048_576L;
-    private static final Set<String> RELATIONSHIPS = Set.of(
+    private static final List<String> RELATIONSHIPS = List.of(
             "OneToOne", "OneToMany", "ManyToOne", "ManyToMany");
 
     public MappingReport analyze(Path sourceRoot) throws java.io.IOException {
