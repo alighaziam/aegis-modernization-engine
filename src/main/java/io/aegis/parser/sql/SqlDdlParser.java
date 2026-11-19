@@ -53,11 +53,48 @@ public final class SqlDdlParser {
                     diagnostics.add(diag("ALTER_TABLE_BEFORE_CREATE", "ALTER TABLE references table not parsed in this input: " + tableName, statement.line()));
                     continue;
                 }
-                Constraint constraint = parseConstraint(constraintName, definition, sourceName, statement.line(), diagnostics);
-                if (constraint != null) {
-                    List\u003cConstraint\u003e changed = new ArrayList\u003c\u003e(table.constraints()); changed.add(constraint);
-                    replaceTable(tables, table, new Table(table.name(), table.columns(), changed, table.indexes(), table.locator()));
-                    evidence.add(new EvidenceDraft("constraint:" + tableName + "." + constraint.name(), sourceName, statement.line(), "ALTER TABLE ADD", "direct", "high"));
+                String upperDefinition = definition.toUpperCase(Locale.ROOT);
+                boolean addsConstraint = upperDefinition.startsWith("CONSTRAINT ")
+                        || upperDefinition.startsWith("PRIMARY KEY")
+                        || upperDefinition.startsWith("FOREIGN KEY")
+                        || upperDefinition.startsWith("UNIQUE ")
+                        || upperDefinition.startsWith("CHECK ");
+                if (addsConstraint) {
+                    Constraint constraint = parseConstraint(constraintName, definition, sourceName, statement.line(), diagnostics);
+                    if (constraint != null) {
+                        List<Constraint> changed = new ArrayList<>(table.constraints());
+                        changed.add(constraint);
+                        replaceTable(tables, table, new Table(table.name(), table.columns(), changed,
+                                table.indexes(), table.locator()));
+                        evidence.add(new EvidenceDraft("constraint:" + tableName + "." + constraint.name(),
+                                sourceName, statement.line(), "ALTER TABLE ADD", "direct", "high"));
+                    }
+                } else {
+                    String columnDefinitions = definition;
+                    if (columnDefinitions.regionMatches(true, 0, "COLUMN ", 0, 7)) {
+                        columnDefinitions = columnDefinitions.substring(7).trim();
+                    }
+                    if (columnDefinitions.startsWith("(") && columnDefinitions.endsWith(")")) {
+                        columnDefinitions = columnDefinitions.substring(1, columnDefinitions.length() - 1);
+                    }
+                    List<Column> changed = new ArrayList<>(table.columns());
+                    for (String columnDefinition : splitTopLevel(columnDefinitions)) {
+                        Column column = parseColumn(columnDefinition, sourceName, statement.line(), diagnostics);
+                        if (column == null) continue;
+                        if (changed.stream().anyMatch(existing -> existing.name().equalsIgnoreCase(column.name()))) {
+                            diagnostics.add(diag("DUPLICATE_COLUMN",
+                                    "ALTER TABLE attempts to add an existing column: " + tableName + "." + column.name(),
+                                    statement.line()));
+                            continue;
+                        }
+                        changed.add(column);
+                        evidence.add(new EvidenceDraft("column:" + tableName + "." + column.name(),
+                                sourceName, statement.line(), "ALTER TABLE ADD COLUMN", "direct", "high"));
+                    }
+                    if (!changed.equals(table.columns())) {
+                        replaceTable(tables, table, new Table(table.name(), changed, table.constraints(),
+                                table.indexes(), table.locator()));
+                    }
                 }
             } else if (!isNonDdlStatement(text)) {
                 diagnostics.add(diag("UNSUPPORTED_DDL", "Statement is outside the supported DDL subset: " + abbreviate(text), statement.line()));
