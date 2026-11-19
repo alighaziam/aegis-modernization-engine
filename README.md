@@ -32,7 +32,7 @@ The repository now contains an initial executable Java implementation:
 
 - Canonical UPKM domain records in `src/main/java/io/aegis/domain`.
 - Strict JSON intake validation and content-addressed artifact registration in `src/main/java/io/aegis/intake`.
-- An offline SQL DDL parser for a deliberately limited Oracle/PostgreSQL subset, plus a DDL-to-UPKM mapper, in `src/main/java/io/aegis/parser/sql`.
+- An offline SQL DDL parser for a deliberately limited Oracle/PostgreSQL subset, plus a DDL-to-UPKM mapper, in `src/main/java/io/aegis/parser/sql`. The parser also folds later `ALTER TABLE ADD COLUMN` statements (including parenthesized multi-column additions) into the table model and records source evidence; duplicate additions become explicit diagnostics.
 - A JDK compiler-tree Java source analyzer that extracts packages, imports, type declarations, field types and method signatures without compiling or executing uploaded code; the UPKM mapper resolves same-package, explicit-import and unambiguous project type references for dependency analysis, in `src/main/java/io/aegis/parser/java`.
 - A bounded, read-only project scanner that discovers Java files and Maven/Gradle descriptors across nested modules, skips generated/vendor directories and symbolic links, applies file/byte limits, merges internal import edges and emits a project dependency-cycle report, in `src/main/java/io/aegis/discovery/ProjectSourceScanner.java`.
 - A Java behavior AST analyzer that records syntactic method-call receiver candidates, guard conditions and thrown exceptions; it deliberately does not claim overload resolution or runtime call-graph certainty, in `src/main/java/io/aegis/analysis`.
