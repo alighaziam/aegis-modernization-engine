@@ -1,7 +1,7 @@
 # Standardized Progress Assessment
 
 - Assessment date: 2026-11-19
-- Baseline commit: `84835d0c` on `main`
+- Baseline commit: `f483dc25f34a35e6538438d85f8e9f2dabf8f152` on `main`
 - Status: evidence-based baseline; category ratings are reviewer scores against the rubric below, not raw GitHub counters.
 - Overall weighted score: **77%**
 
@@ -23,8 +23,8 @@ Formula: overall progress = sum(category score × category weight). A category s
 
 README describes working deterministic CLI, UPKM, Java/SQL/JPA/OpenAPI analysis, lineage, planners, guarded transformations and Oracle-backed snapshots. Production Readiness doc defines manual approval and release gates. Build/Test, CodeQL and OSV scheduled scan passed 2026-11-19.
 
-- Latest CI/build evidence: https://github.com/alighaziam/aegis-modernization-engine/actions/runs/44492410412
-- Latest CodeQL/security workflow evidence: https://github.com/alighaziam/aegis-modernization-engine/actions/runs/44492410273
+- Latest CI/build evidence: https://github.com/alighaziam/aegis-modernization-engine/actions/runs/44570255102
+- Latest CodeQL/security workflow evidence: https://github.com/alighaziam/aegis-modernization-engine/actions/runs/44570255200
 
 ## Remaining release gates
 
@@ -40,3 +40,4 @@ Broader parser and semantic coverage; human review workbench; reversible end-to-
 6. Update this file when evidence changes; do not infer progress from commit count.
 
 This is a consistent engineering assessment baseline, not a claim that a single objectively exact percentage exists independent of the scoring rubric.
+\n\n## Latest merged increment — 19 November 2026\n\nIncremental Oracle/PostgreSQL ALTER TABLE ADD COLUMN parsing (including parenthesized multi-column additions) merged in PR #69; Build/Test, CodeQL, and OSV PR scan passed.\n
