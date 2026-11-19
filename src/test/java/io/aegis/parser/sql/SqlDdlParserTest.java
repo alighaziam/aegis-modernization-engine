@@ -69,4 +69,36 @@ class SqlDdlParserTest {
         assertTrue(result.diagnostics().isEmpty(), () -> result.diagnostics().toString());
     }
 
+    @Test
+    void parsesOracleAndPostgresAlterTableAddColumnFormsWithEvidence() {
+        String sql = """
+                CREATE TABLE customers (id NUMBER(19) PRIMARY KEY);
+                ALTER TABLE customers ADD COLUMN email VARCHAR2(255) NOT NULL;
+                ALTER TABLE customers ADD (display_name VARCHAR2(80), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+                """;
+
+        SqlDdlParser.ParseResult result = parser.parse(sql, "V2__customer_columns.sql", "oracle");
+
+        assertEquals(3, result.tables().getFirst().columns().size());
+        assertEquals("email", result.tables().getFirst().columns().get(1).name());
+        assertFalse(result.tables().getFirst().columns().get(1).nullable());
+        assertEquals("display_name", result.tables().getFirst().columns().get(2).name());
+        assertEquals("created_at", result.tables().getFirst().columns().get(3).name());
+        assertEquals("CURRENT_TIMESTAMP", result.tables().getFirst().columns().get(3).defaultExpression());
+        assertTrue(result.evidence().stream().anyMatch(e -> e.subjectRef().equals("column:customers.email")));
+        assertTrue(result.evidence().stream().anyMatch(e -> e.subjectRef().equals("column:customers.display_name")));
+        assertTrue(result.diagnostics().isEmpty(), () -> result.diagnostics().toString());
+    }
+
+    @Test
+    void reportsDuplicateAlterTableColumnsInsteadOfSilentlyReplacingThem() {
+        SqlDdlParser.ParseResult result = parser.parse("""
+                CREATE TABLE customers (id BIGINT PRIMARY KEY, email VARCHAR(255));
+                ALTER TABLE customers ADD COLUMN email VARCHAR(320);
+                """, "migration.sql", "postgresql");
+
+        assertEquals(2, result.tables().getFirst().columns().size());
+        assertTrue(result.diagnostics().stream().anyMatch(d -> "DUPLICATE_COLUMN".equals(d.code())));
+    }
+
 }
