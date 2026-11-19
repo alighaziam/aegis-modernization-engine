@@ -79,7 +79,7 @@ class SqlDdlParserTest {
 
         SqlDdlParser.ParseResult result = parser.parse(sql, "V2__customer_columns.sql", "oracle");
 
-        assertEquals(3, result.tables().getFirst().columns().size());
+        assertEquals(4, result.tables().getFirst().columns().size());
         assertEquals("email", result.tables().getFirst().columns().get(1).name());
         assertFalse(result.tables().getFirst().columns().get(1).nullable());
         assertEquals("display_name", result.tables().getFirst().columns().get(2).name());
