@@ -47,3 +47,9 @@ This is a consistent engineering assessment baseline, not a claim that a single 
 - Added static parsing for `ALTER TABLE ... DROP CONSTRAINT [IF EXISTS] name` in the supported SQL DDL subset.
 - Successful drops update the in-memory table model and emit direct evidence; unknown constraints produce an explicit review diagnostic without changing the model.
 - Regression tests cover successful removal/evidence and unknown-constraint non-mutation. Parsing remains static and does not execute database DDL or perform a migration.
+
+
+## Latest merged increment — 20 November 2026
+
+- PR #70 merged as `c2b249420ecf0211ced3b7dc49b20a67342e4294` after Build and Test, CodeQL, and OSV PR Scan passed on head `be6caf39c4496acde89deae4c5aea7004c594e2a`.
+- Static `ALTER TABLE ... DROP CONSTRAINT [IF EXISTS]` parsing now updates the model on known constraints and emits review diagnostics without mutation for unknown constraints. This does not execute database DDL.
