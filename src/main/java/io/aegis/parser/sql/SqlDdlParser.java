@@ -248,7 +248,14 @@ public final class SqlDdlParser {
         if (upper.startsWith("FOREIGN KEY")) {
             Matcher ref = REFERENCES.matcher(text);
             if (!ref.find()) { diagnostics.add(diag("UNPARSED_FOREIGN_KEY", "Foreign key has no supported REFERENCES clause", line)); return null; }
-            return new Constraint(name == null ? "FK_" + line : name, "FOREIGN_KEY", insideList(text), cleanName(ref.group(1)), splitIdentifiers(ref.group(2)), locator(source, line));
+            Matcher localColumns = Pattern.compile("(?is)^FOREIGN\\s+KEY\\s*\\((.*?)\\)").matcher(text);
+            if (!localColumns.find()) {
+                diagnostics.add(diag("UNPARSED_FOREIGN_KEY", "Foreign key has no supported local column list", line));
+                return null;
+            }
+            return new Constraint(name == null ? "FK_" + line : name, "FOREIGN_KEY",
+                    splitIdentifiers(localColumns.group(1)), cleanName(ref.group(1)),
+                    splitIdentifiers(ref.group(2)), locator(source, line));
         }
         if (upper.startsWith("CHECK")) return new Constraint(name == null ? "CK_" + line : name, "CHECK", List.of(), null, List.of(), locator(source, line));
         diagnostics.add(diag("UNSUPPORTED_CONSTRAINT", "Unsupported constraint: " + abbreviate(text), line));
