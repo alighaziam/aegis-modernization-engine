@@ -41,3 +41,9 @@ Broader parser and semantic coverage; human review workbench; reversible end-to-
 
 This is a consistent engineering assessment baseline, not a claim that a single objectively exact percentage exists independent of the scoring rubric.
 \n\n## Latest merged increment — 19 November 2026\n\nIncremental Oracle/PostgreSQL ALTER TABLE ADD COLUMN parsing (including parenthesized multi-column additions) merged in PR #69; Build/Test, CodeQL, and OSV PR scan passed.\n
+
+## Development checkpoint — 20 November 2026
+
+- Added static parsing for `ALTER TABLE ... DROP CONSTRAINT [IF EXISTS] name` in the supported SQL DDL subset.
+- Successful drops update the in-memory table model and emit direct evidence; unknown constraints produce an explicit review diagnostic without changing the model.
+- Regression tests cover successful removal/evidence and unknown-constraint non-mutation. Parsing remains static and does not execute database DDL or perform a migration.

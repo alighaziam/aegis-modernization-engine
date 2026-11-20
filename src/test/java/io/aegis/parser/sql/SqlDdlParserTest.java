@@ -91,6 +91,37 @@ class SqlDdlParserTest {
     }
 
     @Test
+    void parsesAlterTableDropConstraintAndRecordsEvidence() {
+        SqlDdlParser.ParseResult result = parser.parse("""
+                CREATE TABLE orders (
+                    id BIGINT PRIMARY KEY,
+                    customer_id BIGINT,
+                    CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES customers(id)
+                );
+                ALTER TABLE orders DROP CONSTRAINT fk_orders_customer;
+                """, "V3__drop_customer_fk.sql", "postgresql");
+
+        assertTrue(result.tables().getFirst().constraints().stream()
+                .noneMatch(c -> "fk_orders_customer".equalsIgnoreCase(c.name())));
+        assertTrue(result.evidence().stream().anyMatch(e ->
+                e.subjectRef().equals("constraint:orders.fk_orders_customer")
+                        && e.extraction().equals("ALTER TABLE DROP CONSTRAINT")));
+        assertTrue(result.diagnostics().isEmpty(), () -> result.diagnostics().toString());
+    }
+
+    @Test
+    void reportsUnknownConstraintDropsWithoutChangingTheParsedTable() {
+        SqlDdlParser.ParseResult result = parser.parse("""
+                CREATE TABLE orders (id BIGINT PRIMARY KEY);
+                ALTER TABLE orders DROP CONSTRAINT fk_missing;
+                """, "V3__invalid_drop.sql", "oracle");
+
+        assertEquals(1, result.tables().getFirst().constraints().size());
+        assertTrue(result.diagnostics().stream()
+                .anyMatch(d -> "DROP_CONSTRAINT_NOT_FOUND".equals(d.code())));
+    }
+
+    @Test
     void reportsDuplicateAlterTableColumnsInsteadOfSilentlyReplacingThem() {
         SqlDdlParser.ParseResult result = parser.parse("""
                 CREATE TABLE customers (id BIGINT PRIMARY KEY, email VARCHAR(255));
