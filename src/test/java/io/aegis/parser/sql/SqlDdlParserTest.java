@@ -132,4 +132,63 @@ class SqlDdlParserTest {
         assertTrue(result.diagnostics().stream().anyMatch(d -> "DUPLICATE_COLUMN".equals(d.code())));
     }
 
+
+    @Test
+    void parsesAlterTableDropColumnAndRecordsEvidence() {
+        SqlDdlParser.ParseResult result = parser.parse("""
+                CREATE TABLE customers (id BIGINT PRIMARY KEY, legacy_code VARCHAR(40));
+                ALTER TABLE customers DROP COLUMN legacy_code;
+                """, "V4__drop_legacy_code.sql", "postgresql");
+
+        assertEquals(1, result.tables().getFirst().columns().size());
+        assertEquals("id", result.tables().getFirst().columns().getFirst().name());
+        assertTrue(result.evidence().stream().anyMatch(e ->
+                e.subjectRef().equals("column:customers.legacy_code")
+                        && e.extraction().equals("ALTER TABLE DROP COLUMN")));
+        assertTrue(result.diagnostics().isEmpty(), () -> result.diagnostics().toString());
+    }
+
+    @Test
+    void doesNotDropColumnsReferencedByConstraintsOrIndexes() {
+        SqlDdlParser.ParseResult result = parser.parse("""
+                CREATE TABLE orders (
+                    id BIGINT PRIMARY KEY,
+                    customer_id BIGINT,
+                    CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES customers(id)
+                );
+                ALTER TABLE orders DROP COLUMN customer_id;
+                """, "V4__unsafe_drop.sql", "postgresql");
+
+        assertTrue(result.tables().getFirst().columns().stream()
+                .anyMatch(column -> "customer_id".equalsIgnoreCase(column.name())));
+        assertTrue(result.diagnostics().stream()
+                .anyMatch(d -> "DROP_COLUMN_DEPENDENCY".equals(d.code())));
+    }
+
+    @Test
+    void handlesDropColumnIfExistsWithoutDiagnosticForMissingColumn() {
+        SqlDdlParser.ParseResult result = parser.parse("""
+                CREATE TABLE customers (id BIGINT PRIMARY KEY);
+                ALTER TABLE customers DROP COLUMN IF EXISTS retired_code;
+                """, "V4__idempotent_drop.sql", "postgresql");
+
+        assertEquals(1, result.tables().getFirst().columns().size());
+        assertTrue(result.diagnostics().isEmpty(), () -> result.diagnostics().toString());
+    }
+
+
+    @Test
+    void doesNotDropColumnsReferencedByIndexesDeclaredEarlier() {
+        SqlDdlParser.ParseResult result = parser.parse("""
+                CREATE TABLE customers (id BIGINT PRIMARY KEY, email VARCHAR(255));
+                CREATE INDEX idx_customers_email ON customers(email);
+                ALTER TABLE customers DROP COLUMN email;
+                """, "V4__indexed_drop.sql", "postgresql");
+
+        assertTrue(result.tables().getFirst().columns().stream()
+                .anyMatch(column -> "email".equalsIgnoreCase(column.name())));
+        assertTrue(result.diagnostics().stream()
+                .anyMatch(d -> "DROP_COLUMN_DEPENDENCY".equals(d.code())));
+    }
+
 }
