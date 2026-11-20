@@ -30,6 +30,7 @@ public final class SqlDdlParser {
             Matcher tableMatcher = CREATE_TABLE.matcher(text);
             Matcher indexMatcher = CREATE_INDEX.matcher(text);
             Matcher alterMatcher = ALTER_TABLE.matcher(text);
+            Matcher dropConstraintMatcher = ALTER_DROP_CONSTRAINT.matcher(text);
             if (tableMatcher.find()) {
                 String tableName = cleanName(tableMatcher.group(1));
                 int open = text.indexOf('(', tableMatcher.start());
@@ -45,40 +46,29 @@ public final class SqlDdlParser {
                         locator(sourceName, statement.line()));
                 indexes.add(index);
                 evidence.add(new EvidenceDraft("index:" + index.name(), sourceName, statement.line(), "CREATE INDEX", "direct", "high"));
-            } else {
-                Matcher dropConstraintMatcher = ALTER_DROP_CONSTRAINT.matcher(text);
-                if (dropConstraintMatcher.find()) {
-                    String tableName = cleanName(dropConstraintMatcher.group(1));
-                    String constraintName = cleanName(dropConstraintMatcher.group(2));
-                    Table table = findTable(tables, tableName);
-                    if (table == null) {
-                        diagnostics.add(diag("ALTER_TABLE_BEFORE_CREATE",
-                                "ALTER TABLE references table not parsed in this input: " + tableName,
-                                statement.line()));
-                        continue;
-                    }
-                    List<Constraint> changed = new ArrayList<>(table.constraints());
-                    boolean removed = changed.removeIf(existing -> existing.name().equalsIgnoreCase(constraintName));
-                    if (!removed) {
-                        diagnostics.add(diag("DROP_CONSTRAINT_NOT_FOUND",
-                                "ALTER TABLE attempts to drop an unknown constraint: " + tableName + "." + constraintName,
-                                statement.line()));
-                        continue;
-                    }
-                    replaceTable(tables, table, new Table(table.name(), table.columns(), changed,
-                            table.indexes(), table.locator()));
-                    evidence.add(new EvidenceDraft("constraint:" + tableName + "." + constraintName,
-                            sourceName, statement.line(), "ALTER TABLE DROP CONSTRAINT", "direct", "high"));
+            } else if (dropConstraintMatcher.find()) {
+                String tableName = cleanName(dropConstraintMatcher.group(1));
+                String constraintName = cleanName(dropConstraintMatcher.group(2));
+                Table table = findTable(tables, tableName);
+                if (table == null) {
+                    diagnostics.add(diag("ALTER_TABLE_BEFORE_CREATE",
+                            "ALTER TABLE references table not parsed in this input: " + tableName,
+                            statement.line()));
                     continue;
                 }
-                Matcher alterMatcher = ALTER_TABLE.matcher(text);
-                if (!alterMatcher.find()) {
-                    if (!isNonDdlStatement(text)) {
-                        diagnostics.add(diag("UNSUPPORTED_DDL",
-                                "Statement is outside the supported DDL subset: " + abbreviate(text), statement.line()));
-                    }
+                List<Constraint> changed = new ArrayList<>(table.constraints());
+                boolean removed = changed.removeIf(existing -> existing.name().equalsIgnoreCase(constraintName));
+                if (!removed) {
+                    diagnostics.add(diag("DROP_CONSTRAINT_NOT_FOUND",
+                            "ALTER TABLE attempts to drop an unknown constraint: " + tableName + "." + constraintName,
+                            statement.line()));
                     continue;
                 }
+                replaceTable(tables, table, new Table(table.name(), table.columns(), changed,
+                        table.indexes(), table.locator()));
+                evidence.add(new EvidenceDraft("constraint:" + tableName + "." + constraintName,
+                        sourceName, statement.line(), "ALTER TABLE DROP CONSTRAINT", "direct", "high"));
+            } else if (alterMatcher.find()) {
                 String tableName = cleanName(alterMatcher.group(1));
                 String constraintName = cleanName(alterMatcher.group(2));
                 String definition = alterMatcher.group(3).trim();
