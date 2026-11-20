@@ -70,4 +70,6 @@ This is a consistent engineering assessment baseline, not a claim that a single 
 
 - Fixed the supported `ALTER TABLE ... DROP CONSTRAINT IF EXISTS` path so a missing constraint is treated as an idempotent no-op rather than emitting `DROP_CONSTRAINT_NOT_FOUND`.
 - Added a regression test asserting the table remains unchanged, no diagnostic is emitted, and no removal evidence is fabricated when the named constraint is absent.
-- PR validation is pending; no verification or progress-score increase is claimed before CI, CodeQL and OSV pass on the exact PR head.
+- PR #72 merged as `17f34de1abc8792d304e72486f11d84cb6cdaedc` after Build and Test (run 44685065328), CodeQL (run 44685065336), and OSV (run 44685065650) passed on head `32c3f6ed26f782029e759507ae10de08977d37d9`.
+- Missing constraints with `IF EXISTS` now produce an idempotent no-op without a diagnostic or fabricated removal evidence; without `IF EXISTS`, the existing diagnostic remains.
+- No overall score increase is claimed; the six rubric dimensions have not been fully reassessed.
