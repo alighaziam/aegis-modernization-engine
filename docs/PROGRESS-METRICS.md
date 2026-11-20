@@ -53,3 +53,11 @@ This is a consistent engineering assessment baseline, not a claim that a single 
 
 - PR #70 merged as `c2b249420ecf0211ced3b7dc49b20a67342e4294` after Build and Test, CodeQL, and OSV PR Scan passed on head `be6caf39c4496acde89deae4c5aea7004c594e2a`.
 - Static `ALTER TABLE ... DROP CONSTRAINT [IF EXISTS]` parsing now updates the model on known constraints and emits review diagnostics without mutation for unknown constraints. This does not execute database DDL.
+
+
+## Development checkpoint — 20 November 2026
+
+- Added static parsing for `ALTER TABLE ... DROP COLUMN [IF EXISTS]` in the supported DDL subset.
+- A known unreferenced column is removed from the in-memory model and emits direct evidence. Missing columns are diagnosed unless `IF EXISTS` is present.
+- A column referenced by a parsed constraint or index is retained and produces `DROP_COLUMN_DEPENDENCY`; this conservative behavior avoids silently creating an internally inconsistent model.
+- Regression tests cover successful removal/evidence, dependency protection, and `IF EXISTS` handling. CI, CodeQL and OSV validation are pending; no verification or progress-score increase is claimed yet.
