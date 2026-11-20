@@ -64,3 +64,10 @@ This is a consistent engineering assessment baseline, not a claim that a single 
 - The initial CI failure exposed a foreign-key local-column extraction ambiguity; the parser was corrected to extract the local column list explicitly. Dependency checks also include indexes parsed earlier in the same DDL input, with a dedicated regression.
 - PR #71 merged as `298de356b980c4e707dd0f21ffd1505332c7e79e` after Build and Test, CodeQL, and OSV passed on head `913c89be0d9fefd7def723dfadd04eff17c4aec6`.
 - No overall score increase is claimed; the six rubric dimensions have not been fully reassessed.
+
+
+## Development checkpoint — 20 November 2026
+
+- Fixed the supported `ALTER TABLE ... DROP CONSTRAINT IF EXISTS` path so a missing constraint is treated as an idempotent no-op rather than emitting `DROP_CONSTRAINT_NOT_FOUND`.
+- Added a regression test asserting the table remains unchanged, no diagnostic is emitted, and no removal evidence is fabricated when the named constraint is absent.
+- PR validation is pending; no verification or progress-score increase is claimed before CI, CodeQL and OSV pass on the exact PR head.

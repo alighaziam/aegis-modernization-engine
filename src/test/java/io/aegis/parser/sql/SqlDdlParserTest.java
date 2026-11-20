@@ -110,6 +110,19 @@ class SqlDdlParserTest {
     }
 
     @Test
+    void handlesDropConstraintIfExistsWithoutDiagnosticForMissingConstraint() {
+        SqlDdlParser.ParseResult result = parser.parse("""
+                CREATE TABLE orders (id BIGINT PRIMARY KEY);
+                ALTER TABLE orders DROP CONSTRAINT IF EXISTS fk_missing;
+                """, "V3__idempotent_drop.sql", "postgresql");
+
+        assertEquals(1, result.tables().getFirst().constraints().size());
+        assertTrue(result.diagnostics().isEmpty(), () -> result.diagnostics().toString());
+        assertTrue(result.evidence().stream().noneMatch(e ->
+                e.extraction().equals("ALTER TABLE DROP CONSTRAINT")));
+    }
+
+    @Test
     void reportsUnknownConstraintDropsWithoutChangingTheParsedTable() {
         SqlDdlParser.ParseResult result = parser.parse("""
                 CREATE TABLE orders (id BIGINT PRIMARY KEY);

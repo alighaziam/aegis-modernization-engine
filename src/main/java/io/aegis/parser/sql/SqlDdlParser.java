@@ -12,7 +12,7 @@ public final class SqlDdlParser {
     private static final Pattern CREATE_TABLE = Pattern.compile("(?is)^\\s*CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?([\\w.$#\\\" ]+)\\s*\\(");
     private static final Pattern CREATE_INDEX = Pattern.compile("(?is)^\\s*CREATE\\s+(UNIQUE\\s+)?INDEX\\s+([\\w.$#\\\"]+)\\s+ON\\s+([\\w.$#\\\"]+)\\s*\\((.*?)\\)");
     private static final Pattern ALTER_TABLE = Pattern.compile("(?is)^\\s*ALTER\\s+TABLE\\s+([\\w.$#\\\"]+)\\s+ADD\\s+(?:CONSTRAINT\\s+([\\w.$#\\\"]+)\\s+)?(.*)$");
-    private static final Pattern ALTER_DROP_CONSTRAINT = Pattern.compile("(?is)^\\s*ALTER\\s+TABLE\\s+([\\w.$#\\\"]+)\\s+DROP\\s+CONSTRAINT\\s+(?:IF\\s+EXISTS\\s+)?([\\w.$#\\\"]+)\\s*$");
+    private static final Pattern ALTER_DROP_CONSTRAINT = Pattern.compile("(?is)^\\s*ALTER\\s+TABLE\\s+([\\w.$#\\\"]+)\\s+DROP\\s+CONSTRAINT\\s+(IF\\s+EXISTS\\s+)?([\\w.$#\\\"]+)\\s*$");
     private static final Pattern ALTER_DROP_COLUMN = Pattern.compile("(?is)^\\s*ALTER\\s+TABLE\\s+([\\w.$#\\\"]+)\\s+DROP\\s+COLUMN\\s+(IF\\s+EXISTS\\s+)?([\\w.$#\\\"]+)\\s*$");
     private static final Pattern IDENTIFIER = Pattern.compile("^[\\\"]?([A-Za-z0-9_$#]+)[\\\"]?");
     private static final Pattern REFERENCES = Pattern.compile("(?is)REFERENCES\\s+([\\w.$#\\\"]+)\\s*\\((.*?)\\)");
@@ -50,7 +50,8 @@ public final class SqlDdlParser {
                 evidence.add(new EvidenceDraft("index:" + index.name(), sourceName, statement.line(), "CREATE INDEX", "direct", "high"));
             } else if (dropConstraintMatcher.find()) {
                 String tableName = cleanName(dropConstraintMatcher.group(1));
-                String constraintName = cleanName(dropConstraintMatcher.group(2));
+                boolean ifExists = dropConstraintMatcher.group(2) != null;
+                String constraintName = cleanName(dropConstraintMatcher.group(3));
                 Table table = findTable(tables, tableName);
                 if (table == null) {
                     diagnostics.add(diag("ALTER_TABLE_BEFORE_CREATE",
@@ -61,7 +62,7 @@ public final class SqlDdlParser {
                 List<Constraint> changed = new ArrayList<>(table.constraints());
                 boolean removed = changed.removeIf(existing -> existing.name().equalsIgnoreCase(constraintName));
                 if (!removed) {
-                    diagnostics.add(diag("DROP_CONSTRAINT_NOT_FOUND",
+                    if (!ifExists) diagnostics.add(diag("DROP_CONSTRAINT_NOT_FOUND",
                             "ALTER TABLE attempts to drop an unknown constraint: " + tableName + "." + constraintName,
                             statement.line()));
                     continue;
