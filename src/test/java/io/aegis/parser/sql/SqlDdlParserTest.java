@@ -176,4 +176,19 @@ class SqlDdlParserTest {
         assertTrue(result.diagnostics().isEmpty(), () -> result.diagnostics().toString());
     }
 
+
+    @Test
+    void doesNotDropColumnsReferencedByIndexesDeclaredEarlier() {
+        SqlDdlParser.ParseResult result = parser.parse("""
+                CREATE TABLE customers (id BIGINT PRIMARY KEY, email VARCHAR(255));
+                CREATE INDEX idx_customers_email ON customers(email);
+                ALTER TABLE customers DROP COLUMN email;
+                """, "V4__indexed_drop.sql", "postgresql");
+
+        assertTrue(result.tables().getFirst().columns().stream()
+                .anyMatch(column -> "email".equalsIgnoreCase(column.name())));
+        assertTrue(result.diagnostics().stream()
+                .anyMatch(d -> "DROP_COLUMN_DEPENDENCY".equals(d.code())));
+    }
+
 }
