@@ -93,8 +93,9 @@ public final class SqlDdlParser {
                 boolean usedByConstraint = table.constraints().stream()
                         .anyMatch(constraint -> constraint.columns().stream()
                                 .anyMatch(name -> name.equalsIgnoreCase(columnName)));
-                boolean usedByIndex = table.indexes().stream()
-                        .anyMatch(index -> index.columns().stream()
+                boolean usedByIndex = indexes.stream()
+                        .anyMatch(index -> index.tableName().equalsIgnoreCase(tableName)
+                                && index.columns().stream()
                                 .anyMatch(name -> name.equalsIgnoreCase(columnName)));
                 if (usedByConstraint || usedByIndex) {
                     diagnostics.add(diag("DROP_COLUMN_DEPENDENCY",
