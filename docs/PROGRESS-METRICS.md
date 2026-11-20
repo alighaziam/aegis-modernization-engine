@@ -73,3 +73,13 @@ This is a consistent engineering assessment baseline, not a claim that a single 
 - PR #72 merged as `17f34de1abc8792d304e72486f11d84cb6cdaedc` after Build and Test (run 44685065328), CodeQL (run 44685065336), and OSV (run 44685065650) passed on head `32c3f6ed26f782029e759507ae10de08977d37d9`.
 - Missing constraints with `IF EXISTS` now produce an idempotent no-op without a diagnostic or fabricated removal evidence; without `IF EXISTS`, the existing diagnostic remains.
 - No overall score increase is claimed; the six rubric dimensions have not been fully reassessed.
+
+## Daily repository audit — 20 November 2026
+
+- Audited default branch main at 46d495f3195108928162ae6440c73e7baa261637.
+- Latest Build and Test: [run 44713242162](https://github.com/alighaziam/aegis-modernization-engine/actions/runs/44713242162) — passed.
+- Latest CodeQL: [run 44713242154](https://github.com/alighaziam/aegis-modernization-engine/actions/runs/44713242154) — passed.
+- Latest OSV scan: [run 44713242828](https://github.com/alighaziam/aegis-modernization-engine/actions/runs/44713242828) — passed.
+- No open pull requests were found. PR #72 is merged; its DROP CONSTRAINT IF EXISTS no-op behavior and regression are already on main.
+- No progress percentage is changed: the full six-dimension rubric has not been reassessed. Real database execution, semantic validation, reversible migration execution, review workbench and production deployment remain release gates.
+- The hourly PR Guardian file is present and now passes an explicit repository to gh; post-change scheduled execution is still being verified across all repositories.
