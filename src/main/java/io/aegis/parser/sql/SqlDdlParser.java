@@ -13,6 +13,7 @@ public final class SqlDdlParser {
     private static final Pattern CREATE_INDEX = Pattern.compile("(?is)^\\s*CREATE\\s+(UNIQUE\\s+)?INDEX\\s+([\\w.$#\\\"]+)\\s+ON\\s+([\\w.$#\\\"]+)\\s*\\((.*?)\\)");
     private static final Pattern ALTER_TABLE = Pattern.compile("(?is)^\\s*ALTER\\s+TABLE\\s+([\\w.$#\\\"]+)\\s+ADD\\s+(?:CONSTRAINT\\s+([\\w.$#\\\"]+)\\s+)?(.*)$");
     private static final Pattern ALTER_DROP_CONSTRAINT = Pattern.compile("(?is)^\\s*ALTER\\s+TABLE\\s+([\\w.$#\\\"]+)\\s+DROP\\s+CONSTRAINT\\s+(?:IF\\s+EXISTS\\s+)?([\\w.$#\\\"]+)\\s*$");
+    private static final Pattern ALTER_DROP_COLUMN = Pattern.compile("(?is)^\\s*ALTER\\s+TABLE\\s+([\\w.$#\\\"]+)\\s+DROP\\s+COLUMN\\s+(IF\\s+EXISTS\\s+)?([\\w.$#\\\"]+)\\s*$");
     private static final Pattern IDENTIFIER = Pattern.compile("^[\\\"]?([A-Za-z0-9_$#]+)[\\\"]?");
     private static final Pattern REFERENCES = Pattern.compile("(?is)REFERENCES\\s+([\\w.$#\\\"]+)\\s*\\((.*?)\\)");
 
@@ -31,6 +32,7 @@ public final class SqlDdlParser {
             Matcher indexMatcher = CREATE_INDEX.matcher(text);
             Matcher alterMatcher = ALTER_TABLE.matcher(text);
             Matcher dropConstraintMatcher = ALTER_DROP_CONSTRAINT.matcher(text);
+            Matcher dropColumnMatcher = ALTER_DROP_COLUMN.matcher(text);
             if (tableMatcher.find()) {
                 String tableName = cleanName(tableMatcher.group(1));
                 int open = text.indexOf('(', tableMatcher.start());
@@ -68,6 +70,45 @@ public final class SqlDdlParser {
                         table.indexes(), table.locator()));
                 evidence.add(new EvidenceDraft("constraint:" + tableName + "." + constraintName,
                         sourceName, statement.line(), "ALTER TABLE DROP CONSTRAINT", "direct", "high"));
+            } else if (dropColumnMatcher.find()) {
+                String tableName = cleanName(dropColumnMatcher.group(1));
+                boolean ifExists = dropColumnMatcher.group(2) != null;
+                String columnName = cleanName(dropColumnMatcher.group(3));
+                Table table = findTable(tables, tableName);
+                if (table == null) {
+                    diagnostics.add(diag("ALTER_TABLE_BEFORE_CREATE",
+                            "ALTER TABLE references table not parsed in this input: " + tableName,
+                            statement.line()));
+                    continue;
+                }
+                Column existing = table.columns().stream()
+                        .filter(column -> column.name().equalsIgnoreCase(columnName))
+                        .findFirst().orElse(null);
+                if (existing == null) {
+                    if (!ifExists) diagnostics.add(diag("DROP_COLUMN_NOT_FOUND",
+                            "ALTER TABLE attempts to drop an unknown column: " + tableName + "." + columnName,
+                            statement.line()));
+                    continue;
+                }
+                boolean usedByConstraint = table.constraints().stream()
+                        .anyMatch(constraint -> constraint.columns().stream()
+                                .anyMatch(name -> name.equalsIgnoreCase(columnName)));
+                boolean usedByIndex = table.indexes().stream()
+                        .anyMatch(index -> index.columns().stream()
+                                .anyMatch(name -> name.equalsIgnoreCase(columnName)));
+                if (usedByConstraint || usedByIndex) {
+                    diagnostics.add(diag("DROP_COLUMN_DEPENDENCY",
+                            "ALTER TABLE cannot safely drop a column referenced by a parsed constraint or index: "
+                                    + tableName + "." + columnName,
+                            statement.line()));
+                    continue;
+                }
+                List<Column> changed = new ArrayList<>(table.columns());
+                changed.removeIf(column -> column.name().equalsIgnoreCase(columnName));
+                replaceTable(tables, table, new Table(table.name(), changed, table.constraints(),
+                        table.indexes(), table.locator()));
+                evidence.add(new EvidenceDraft("column:" + tableName + "." + columnName,
+                        sourceName, statement.line(), "ALTER TABLE DROP COLUMN", "direct", "high"));
             } else if (alterMatcher.find()) {
                 String tableName = cleanName(alterMatcher.group(1));
                 String constraintName = cleanName(alterMatcher.group(2));
