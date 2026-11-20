@@ -61,3 +61,5 @@ This is a consistent engineering assessment baseline, not a claim that a single 
 - A known unreferenced column is removed from the in-memory model and emits direct evidence. Missing columns are diagnosed unless `IF EXISTS` is present.
 - A column referenced by a parsed constraint or index is retained and produces `DROP_COLUMN_DEPENDENCY`; this conservative behavior avoids silently creating an internally inconsistent model.
 - Regression tests cover successful removal/evidence, dependency protection, and `IF EXISTS` handling. CI, CodeQL and OSV validation are pending; no verification or progress-score increase is claimed yet.
+
+- First CI run exposed an existing foreign-key local-column extraction ambiguity (`insideList` selected the final REFERENCES parenthesis), which prevented dependency detection. The FK parser now extracts the local column list explicitly; drop-column dependency checks also include indexes parsed earlier in the same DDL input. Added a dedicated regression for indexed columns. Corrected CI is pending on the latest branch head.
