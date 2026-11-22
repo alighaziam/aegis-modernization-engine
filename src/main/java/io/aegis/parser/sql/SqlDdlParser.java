@@ -14,6 +14,7 @@ public final class SqlDdlParser {
     private static final Pattern ALTER_TABLE = Pattern.compile("(?is)^\\s*ALTER\\s+TABLE\\s+([\\w.$#\\\"]+)\\s+ADD\\s+(?:CONSTRAINT\\s+([\\w.$#\\\"]+)\\s+)?(.*)$");
     private static final Pattern ALTER_DROP_CONSTRAINT = Pattern.compile("(?is)^\\s*ALTER\\s+TABLE\\s+([\\w.$#\\\"]+)\\s+DROP\\s+CONSTRAINT\\s+(IF\\s+EXISTS\\s+)?([\\w.$#\\\"]+)\\s*$");
     private static final Pattern ALTER_DROP_COLUMN = Pattern.compile("(?is)^\\s*ALTER\\s+TABLE\\s+([\\w.$#\\\"]+)\\s+DROP\\s+COLUMN\\s+(IF\\s+EXISTS\\s+)?([\\w.$#\\\"]+)\\s*$");
+    private static final Pattern ALTER_RENAME_COLUMN = Pattern.compile("(?is)^\\s*ALTER\\s+TABLE\\s+([\\w.$#\\\"]+)\\s+RENAME\\s+COLUMN\\s+([\\w.$#\\\"]+)\\s+TO\\s+([\\w.$#\\\"]+)\\s*$");
     private static final Pattern IDENTIFIER = Pattern.compile("^[\\\"]?([A-Za-z0-9_$#]+)[\\\"]?");
     private static final Pattern REFERENCES = Pattern.compile("(?is)REFERENCES\\s+([\\w.$#\\\"]+)\\s*\\((.*?)\\)");
 
@@ -33,6 +34,7 @@ public final class SqlDdlParser {
             Matcher alterMatcher = ALTER_TABLE.matcher(text);
             Matcher dropConstraintMatcher = ALTER_DROP_CONSTRAINT.matcher(text);
             Matcher dropColumnMatcher = ALTER_DROP_COLUMN.matcher(text);
+            Matcher renameColumnMatcher = ALTER_RENAME_COLUMN.matcher(text);
             if (tableMatcher.find()) {
                 String tableName = cleanName(tableMatcher.group(1));
                 int open = text.indexOf('(', tableMatcher.start());
@@ -163,6 +165,56 @@ public final class SqlDdlParser {
                                 table.indexes(), table.locator()));
                     }
                 }
+            } else if (renameColumnMatcher.find()) {
+                String tableName = cleanName(renameColumnMatcher.group(1));
+                String oldName = cleanName(renameColumnMatcher.group(2));
+                String newName = cleanName(renameColumnMatcher.group(3));
+                Table table = findTable(tables, tableName);
+                if (table == null) {
+                    diagnostics.add(diag("ALTER_TABLE_BEFORE_CREATE",
+                            "ALTER TABLE references table not parsed in this input: " + tableName,
+                            statement.line()));
+                    continue;
+                }
+                Column existing = table.columns().stream()
+                        .filter(column -> column.name().equalsIgnoreCase(oldName))
+                        .findFirst().orElse(null);
+                if (existing == null) {
+                    diagnostics.add(diag("RENAME_COLUMN_NOT_FOUND",
+                            "ALTER TABLE attempts to rename an unknown column: " + tableName + "." + oldName,
+                            statement.line()));
+                    continue;
+                }
+                if (table.columns().stream().anyMatch(column -> column.name().equalsIgnoreCase(newName))) {
+                    diagnostics.add(diag("DUPLICATE_COLUMN",
+                            "ALTER TABLE rename target already exists: " + tableName + "." + newName,
+                            statement.line()));
+                    continue;
+                }
+                List<Column> changedColumns = new ArrayList<>(table.columns());
+                changedColumns.remove(existing);
+                changedColumns.add(new Column(newName, existing.dataType(), existing.length(), existing.scale(),
+                        existing.nullable(), existing.defaultExpression(), existing.locator()));
+                List<Constraint> changedConstraints = table.constraints().stream()
+                        .map(constraint -> new Constraint(constraint.name(), constraint.type(),
+                                constraint.columns().stream().map(column -> column.equalsIgnoreCase(oldName) ? newName : column).toList(),
+                                constraint.referencedTable(), constraint.referencedColumns(), constraint.locator()))
+                        .toList();
+                for (int i = 0; i < indexes.size(); i++) {
+                    Index index = indexes.get(i);
+                    if (index.tableName().equalsIgnoreCase(tableName)
+                            && index.columns().stream().anyMatch(column -> column.equalsIgnoreCase(oldName))) {
+                        indexes.set(i, new Index(index.name(), index.tableName(),
+                                index.columns().stream().map(column -> column.equalsIgnoreCase(oldName) ? newName : column).toList(),
+                                index.unique(), index.locator()));
+                    }
+                }
+                List<Index> changedIndexes = indexes.stream()
+                        .filter(index -> index.tableName().equalsIgnoreCase(tableName)).toList();
+                replaceTable(tables, table, new Table(table.name(), changedColumns, changedConstraints,
+                        changedIndexes, table.locator()));
+                evidence.add(new EvidenceDraft("column:" + tableName + "." + newName,
+                        sourceName, statement.line(), "ALTER TABLE RENAME COLUMN", "direct", "high"));
             } else if (!isNonDdlStatement(text)) {
                 diagnostics.add(diag("UNSUPPORTED_DDL", "Statement is outside the supported DDL subset: " + abbreviate(text), statement.line()));
             }
