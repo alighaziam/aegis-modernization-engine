@@ -252,4 +252,58 @@ class SqlDdlParserTest {
                 .anyMatch(d -> "DROP_COLUMN_DEPENDENCY".equals(d.code())));
     }
 
+    @Test
+    void renamesTableAndUpdatesForeignKeyAndIndexReferences() {
+        SqlDdlParser.ParseResult result = parser.parse("""
+                CREATE TABLE customers (id BIGINT PRIMARY KEY);
+                CREATE TABLE orders (
+                    id BIGINT PRIMARY KEY,
+                    customer_id BIGINT,
+                    CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES customers(id)
+                );
+                CREATE INDEX idx_customers_id ON customers(id);
+                ALTER TABLE customers RENAME TO clients;
+                """, "V6__rename_customers.sql", "postgresql");
+
+        assertTrue(result.tables().stream().anyMatch(table -> "clients".equalsIgnoreCase(table.name())));
+        assertFalse(result.tables().stream().anyMatch(table -> "customers".equalsIgnoreCase(table.name())));
+        var foreignKey = result.tables().stream().filter(table -> "orders".equalsIgnoreCase(table.name()))
+                .findFirst().orElseThrow().constraints().stream()
+                .filter(constraint -> "fk_orders_customer".equalsIgnoreCase(constraint.name()))
+                .findFirst().orElseThrow();
+        assertEquals("clients", foreignKey.referencedTable());
+        assertEquals("clients", result.indexes().getFirst().tableName());
+        assertTrue(result.tables().stream().filter(table -> "clients".equalsIgnoreCase(table.name()))
+                .findFirst().orElseThrow().indexes().stream()
+                .anyMatch(index -> "clients".equalsIgnoreCase(index.tableName())));
+        assertTrue(result.evidence().stream().anyMatch(e ->
+                e.subjectRef().equals("table:clients") && e.extraction().equals("ALTER TABLE RENAME TO")));
+        assertTrue(result.diagnostics().isEmpty(), () -> result.diagnostics().toString());
+    }
+
+    @Test
+    void rejectsRenameToExistingTableWithoutMutatingTheModel() {
+        SqlDdlParser.ParseResult result = parser.parse("""
+                CREATE TABLE customers (id BIGINT PRIMARY KEY);
+                CREATE TABLE clients (id BIGINT PRIMARY KEY);
+                ALTER TABLE customers RENAME TO clients;
+                """, "V6__duplicate_rename.sql", "postgresql");
+
+        assertTrue(result.tables().stream().anyMatch(table -> "customers".equalsIgnoreCase(table.name())));
+        assertTrue(result.tables().stream().anyMatch(table -> "clients".equalsIgnoreCase(table.name())));
+        assertTrue(result.diagnostics().stream().anyMatch(d -> "DUPLICATE_TABLE".equals(d.code())));
+        assertTrue(result.evidence().stream().noneMatch(e -> e.extraction().equals("ALTER TABLE RENAME TO")));
+    }
+
+    @Test
+    void reportsMissingTableRenameWithoutInventingTable() {
+        SqlDdlParser.ParseResult result = parser.parse(
+                "ALTER TABLE missing RENAME TO replacement;", "V6__missing_rename.sql", "oracle");
+
+        assertTrue(result.tables().isEmpty());
+        assertTrue(result.diagnostics().stream().anyMatch(d -> "RENAME_TABLE_NOT_FOUND".equals(d.code())));
+        assertTrue(result.evidence().isEmpty());
+    }
+
+
 }
