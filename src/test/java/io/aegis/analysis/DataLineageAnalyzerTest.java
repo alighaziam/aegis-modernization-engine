@@ -54,7 +54,7 @@ class DataLineageAnalyzerTest {
 
         var report = new DataLineageAnalyzer().analyze(projectWithTables(source));
 
-        assertEquals(List.of("legacy.ARCHIVE.ACCOUNT", "OTHER_DB.CRM.CUSTOMER"),
+        assertEquals(List.of("OTHER_DB.CRM.CUSTOMER", "legacy.ARCHIVE.ACCOUNT"),
                 report.edges().stream().map(DataLineageAnalyzer.LineageEdge::targetTable).toList());
     }
 
