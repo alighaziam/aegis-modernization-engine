@@ -42,6 +42,23 @@ class DataLineageAnalyzerTest {
     }
 
     @Test
+    void preservesSchemaAndDatabaseQualifiedForeignKeyTargets() {
+        var source = new ProjectKnowledgeModel.DbTable("ORDERS", List.of(), List.of(
+                new ProjectKnowledgeModel.DbConstraint("FK_SCHEMA",
+                        ProjectKnowledgeModel.ConstraintType.FOREIGN_KEY,
+                        List.of("ACCOUNT_ID"), "ARCHIVE.ACCOUNT", List.of("ID"), "schema.sql:2"),
+                new ProjectKnowledgeModel.DbConstraint("FK_DATABASE",
+                        ProjectKnowledgeModel.ConstraintType.FOREIGN_KEY,
+                        List.of("CUSTOMER_ID"), "OTHER_DB.CRM.CUSTOMER", List.of("ID"), "schema.sql:3")
+        ), List.of(), "schema.sql:1");
+
+        var report = new DataLineageAnalyzer().analyze(projectWithTables(source));
+
+        assertEquals(List.of("OTHER_DB.CRM.CUSTOMER", "legacy.ARCHIVE.ACCOUNT"),
+                report.edges().stream().map(DataLineageAnalyzer.LineageEdge::targetTable).toList());
+    }
+
+    @Test
     void reportsIncompleteForeignKeyMetadataWithoutInventingColumnMappings() {
         var table = new ProjectKnowledgeModel.DbTable("INVOICE",
                 List.of(), List.of(
