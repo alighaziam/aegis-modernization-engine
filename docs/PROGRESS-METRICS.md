@@ -1,21 +1,21 @@
 # Standardized Progress Assessment
 
-- Assessment date: 2026-11-19
-- Baseline commit: `f483dc25f34a35e6538438d85f8e9f2dabf8f152` on `main`
-- Status: evidence-based baseline; category ratings are reviewer scores against the rubric below, not raw GitHub counters.
-- Overall weighted score: **77%**
+- Assessment date: 2026-11-22
+- Assessed commit: `63a9778961dded8fc582730fbade32fadd872d60` on `main`
+- Status: reassessed after parser expansion; category ratings are reviewer scores against the same rubric, not raw GitHub counters.
+- Overall weighted score: **80%**
 
 ## Scoring rubric
 
 | Dimension | Weight | Score | Weighted contribution |
 |---|---:|---:|---:|
-| Product capabilities (40%) | 70% | 28.00 |
-| Tests and code quality (20%) | 85% | 17.00 |
+| Product capabilities (40%) | 75% | 30.00 |
+| Tests and code quality (20%) | 90% | 18.00 |
 | CI/CD and build (15%) | 100% | 15.00 |
 | Security (10%) | 90% | 9.00 |
 | Documentation (5%) | 90% | 4.50 |
 | Deployment / production readiness (10%) | 35% | 3.50 |
-| **Total** | **100%** | — | **77.00%** |
+| **Total** | **100%** | — | **80.00%** |
 
 Formula: overall progress = sum(category score × category weight). A category score is based on implemented scope and its verification evidence. Documentation alone does not count as implementation. A green workflow proves only the checks included in that workflow; it does not prove production readiness.
 
@@ -83,3 +83,12 @@ This is a consistent engineering assessment baseline, not a claim that a single 
 - No open pull requests were found. PR #72 is merged; its DROP CONSTRAINT IF EXISTS no-op behavior and regression are already on main.
 - No progress percentage is changed: the full six-dimension rubric has not been reassessed. Real database execution, semantic validation, reversible migration execution, review workbench and production deployment remain release gates.
 - The hourly PR Guardian file is present and now passes an explicit repository to gh; post-change scheduled execution is still being verified across all repositories.
+
+
+## Latest verified increment — 22 November 2026
+
+- Added static `ALTER TABLE ... RENAME COLUMN` parsing for the supported DDL subset.
+- Successful renames preserve column metadata and update parsed constraint/index references; missing source columns and duplicate targets produce diagnostics without mutating the model.
+- Added three regression tests for successful rename/reference updates, duplicate targets, and missing source columns.
+- Build and Test passed on assessed commit `63a9778961dded8fc582730fbade32fadd872d60` ([run 44996567405](https://github.com/alighaziam/aegis-modernization-engine/actions/runs/44996567405)); CodeQL passed ([run 44996567412](https://github.com/alighaziam/aegis-modernization-engine/actions/runs/44996567412)).
+- Parser remains static and does not execute DDL or perform a live database migration. Human review, broader semantic coverage, and real source/target database validation remain open.
