@@ -15,6 +15,7 @@ public final class SqlDdlParser {
     private static final Pattern ALTER_DROP_CONSTRAINT = Pattern.compile("(?is)^\\s*ALTER\\s+TABLE\\s+([\\w.$#\\\"]+)\\s+DROP\\s+CONSTRAINT\\s+(IF\\s+EXISTS\\s+)?([\\w.$#\\\"]+)\\s*$");
     private static final Pattern ALTER_DROP_COLUMN = Pattern.compile("(?is)^\\s*ALTER\\s+TABLE\\s+([\\w.$#\\\"]+)\\s+DROP\\s+COLUMN\\s+(IF\\s+EXISTS\\s+)?([\\w.$#\\\"]+)\\s*$");
     private static final Pattern ALTER_RENAME_COLUMN = Pattern.compile("(?is)^\\s*ALTER\\s+TABLE\\s+([\\w.$#\\\"]+)\\s+RENAME\\s+COLUMN\\s+([\\w.$#\\\"]+)\\s+TO\\s+([\\w.$#\\\"]+)\\s*$");
+    private static final Pattern ALTER_RENAME_TABLE = Pattern.compile("(?is)^\\s*ALTER\\s+TABLE\\s+([\\w.$#\\\"]+)\\s+RENAME\\s+TO\\s+([\\w.$#\\\"]+)\\s*$");
     private static final Pattern IDENTIFIER = Pattern.compile("^[\\\"]?([A-Za-z0-9_$#]+)[\\\"]?");
     private static final Pattern REFERENCES = Pattern.compile("(?is)REFERENCES\\s+([\\w.$#\\\"]+)\\s*\\((.*?)\\)");
 
@@ -35,6 +36,7 @@ public final class SqlDdlParser {
             Matcher dropConstraintMatcher = ALTER_DROP_CONSTRAINT.matcher(text);
             Matcher dropColumnMatcher = ALTER_DROP_COLUMN.matcher(text);
             Matcher renameColumnMatcher = ALTER_RENAME_COLUMN.matcher(text);
+            Matcher renameTableMatcher = ALTER_RENAME_TABLE.matcher(text);
             if (tableMatcher.find()) {
                 String tableName = cleanName(tableMatcher.group(1));
                 int open = text.indexOf('(', tableMatcher.start());
@@ -113,6 +115,53 @@ public final class SqlDdlParser {
                         table.indexes(), table.locator()));
                 evidence.add(new EvidenceDraft("column:" + tableName + "." + columnName,
                         sourceName, statement.line(), "ALTER TABLE DROP COLUMN", "direct", "high"));
+            } else if (renameTableMatcher.find()) {
+                String oldName = cleanName(renameTableMatcher.group(1));
+                String newName = cleanName(renameTableMatcher.group(2));
+                Table existing = findTable(tables, oldName);
+                if (existing == null) {
+                    diagnostics.add(diag("RENAME_TABLE_NOT_FOUND",
+                            "ALTER TABLE attempts to rename an unknown table: " + oldName,
+                            statement.line()));
+                    continue;
+                }
+                if (findTable(tables, newName) != null) {
+                    diagnostics.add(diag("DUPLICATE_TABLE",
+                            "ALTER TABLE rename target already exists: " + newName,
+                            statement.line()));
+                    continue;
+                }
+
+                for (int i = 0; i < indexes.size(); i++) {
+                    Index index = indexes.get(i);
+                    if (index.tableName().equalsIgnoreCase(oldName)) {
+                        indexes.set(i, new Index(index.name(), newName, index.columns(),
+                                index.unique(), index.locator()));
+                    }
+                }
+                for (int i = 0; i < tables.size(); i++) {
+                    Table current = tables.get(i);
+                    String tableName = current.name().equalsIgnoreCase(oldName) ? newName : current.name();
+                    List<Constraint> changedConstraints = current.constraints().stream()
+                            .map(constraint -> oldName.equalsIgnoreCase(constraint.referencedTable())
+                                    ? new Constraint(constraint.name(), constraint.type(), constraint.columns(),
+                                            newName, constraint.referencedColumns(), constraint.locator())
+                                    : constraint)
+                            .toList();
+                    List<Index> changedIndexes = current.indexes().stream()
+                            .map(index -> index.tableName().equalsIgnoreCase(oldName)
+                                    ? new Index(index.name(), newName, index.columns(), index.unique(), index.locator())
+                                    : index)
+                            .toList();
+                    if (!tableName.equals(current.name())
+                            || !changedConstraints.equals(current.constraints())
+                            || !changedIndexes.equals(current.indexes())) {
+                        tables.set(i, new Table(tableName, current.columns(), changedConstraints,
+                                changedIndexes, current.locator()));
+                    }
+                }
+                evidence.add(new EvidenceDraft("table:" + newName, sourceName, statement.line(),
+                        "ALTER TABLE RENAME TO", "direct", "high"));
             } else if (alterMatcher.find()) {
                 String tableName = cleanName(alterMatcher.group(1));
                 String constraintName = cleanName(alterMatcher.group(2));
