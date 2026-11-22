@@ -179,6 +179,54 @@ class SqlDdlParserTest {
     }
 
     @Test
+    void renamesColumnAndUpdatesConstraintAndIndexReferences() {
+        SqlDdlParser.ParseResult result = parser.parse("""
+                CREATE TABLE customers (id BIGINT PRIMARY KEY, email VARCHAR(255) NOT NULL);
+                CREATE INDEX idx_customers_email ON customers(email);
+                ALTER TABLE customers RENAME COLUMN email TO email_address;
+                """, "V5__rename_email.sql", "postgresql");
+
+        assertTrue(result.tables().getFirst().columns().stream()
+                .anyMatch(column -> "email_address".equalsIgnoreCase(column.name())
+                        && "VARCHAR".equals(column.dataType()) && !column.nullable()));
+        assertFalse(result.tables().getFirst().columns().stream()
+                .anyMatch(column -> "email".equalsIgnoreCase(column.name())));
+        assertTrue(result.indexes().getFirst().columns().contains("email_address"));
+        assertTrue(result.tables().getFirst().indexes().getFirst().columns().contains("email_address"));
+        assertTrue(result.evidence().stream().anyMatch(e ->
+                e.subjectRef().equals("column:customers.email_address")
+                        && e.extraction().equals("ALTER TABLE RENAME COLUMN")));
+        assertTrue(result.diagnostics().isEmpty(), () -> result.diagnostics().toString());
+    }
+
+    @Test
+    void rejectsRenameToExistingColumnWithoutMutatingTable() {
+        SqlDdlParser.ParseResult result = parser.parse("""
+                CREATE TABLE customers (id BIGINT PRIMARY KEY, email VARCHAR(255), name VARCHAR(80));
+                ALTER TABLE customers RENAME COLUMN email TO name;
+                """, "V5__invalid_rename.sql", "postgresql");
+
+        assertTrue(result.tables().getFirst().columns().stream()
+                .anyMatch(column -> "email".equalsIgnoreCase(column.name())));
+        assertTrue(result.diagnostics().stream().anyMatch(d -> "DUPLICATE_COLUMN".equals(d.code())));
+        assertTrue(result.evidence().stream().noneMatch(e ->
+                e.extraction().equals("ALTER TABLE RENAME COLUMN")));
+    }
+
+    @Test
+    void reportsMissingRenameSourceWithoutInventingColumn() {
+        SqlDdlParser.ParseResult result = parser.parse("""
+                CREATE TABLE customers (id BIGINT PRIMARY KEY);
+                ALTER TABLE customers RENAME COLUMN missing TO replacement;
+                """, "V5__missing_rename.sql", "oracle");
+
+        assertEquals(1, result.tables().getFirst().columns().size());
+        assertTrue(result.diagnostics().stream().anyMatch(d -> "RENAME_COLUMN_NOT_FOUND".equals(d.code())));
+        assertTrue(result.evidence().stream().noneMatch(e ->
+                e.extraction().equals("ALTER TABLE RENAME COLUMN")));
+    }
+
+    @Test
     void handlesDropColumnIfExistsWithoutDiagnosticForMissingColumn() {
         SqlDdlParser.ParseResult result = parser.parse("""
                 CREATE TABLE customers (id BIGINT PRIMARY KEY);
