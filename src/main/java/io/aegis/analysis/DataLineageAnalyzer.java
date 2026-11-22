@@ -66,7 +66,9 @@ public final class DataLineageAnalyzer {
     }
 
     private static String qualifyReference(String storeId, String schema, String table) {
-        return storeId + "." + (table.contains(".") ? table : schema + "." + table);
+        long separators = table.chars().filter(character -> character == '.').count();
+        if (separators >= 2) return table;
+        return separators == 1 ? storeId + "." + table : storeId + "." + schema + "." + table;
     }
 
     private static String safeName(String value) {
