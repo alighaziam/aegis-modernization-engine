@@ -181,3 +181,32 @@ A feature is complete only when its supported scope and limitations are document
 ## License
 
 License selection is pending. Do not assume this project is licensed for reuse until a license file is added.
+
+
+## SARIF export for SQL DDL diagnostics
+
+Aegis can export the bounded SQL DDL parser diagnostics as SARIF 2.1.0 for GitHub code-scanning and other SARIF consumers:
+
+```bash
+java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar \
+  parse-ddl-sarif ./db/schema.sql postgresql ./output/schema.sarif db/schema.sql
+```
+
+The report includes stable rule IDs, severity levels, source file/line locations and deterministic fingerprints. Exit code `3` means the SARIF file was written but contains review diagnostics; `0` means no diagnostics. This command exports SQL DDL parser findings only; it does not upload results to GitHub or replace human review.
+
+## Hardened containerized CLI
+
+A multi-stage Docker image builds with Java 25/Maven 3.9.11 and runs on the Java 25 JRE as UID 10001. The Compose service uses a read-only root filesystem, drops Linux capabilities, enables `no-new-privileges`, mounts only the workspace as writable, and limits CPU/memory. The CLI exposes no network listener.
+
+```bash
+mkdir -p workspace
+# Linux: make the bind mount writable by the non-root container user.
+sudo chown -R 10001:10001 workspace
+docker compose build
+docker compose run --rm aegis --help
+docker compose run --rm aegis \
+  parse-ddl-sarif /opt/aegis/examples/smoke.sql postgresql \
+  /workspace/schema.sarif examples/smoke.sql
+```
+
+The example intentionally contains a review diagnostic, so the last command returns exit code `3` after writing the SARIF file. Place customer inputs and generated reports under `workspace/`; do not mount secrets or production data unless approved by your data-handling policy. Oracle connectivity, when required, must be configured separately through environment variables and deployment network policy.
