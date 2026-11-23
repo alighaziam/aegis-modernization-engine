@@ -92,3 +92,10 @@ This is a consistent engineering assessment baseline, not a claim that a single 
 - Added three regression tests for successful rename/reference updates, duplicate targets, and missing source columns.
 - Build and Test passed on assessed commit `63a9778961dded8fc582730fbade32fadd872d60` ([run 44996567405](https://github.com/alighaziam/aegis-modernization-engine/actions/runs/44996567405)); CodeQL passed ([run 44996567412](https://github.com/alighaziam/aegis-modernization-engine/actions/runs/44996567412)).
 - Parser remains static and does not execute DDL or perform a live database migration. Human review, broader semantic coverage, and real source/target database validation remain open.
+
+## Latest merged increment — 23 November 2026
+
+- PR #82 merged as `a98688c351a1946158c2ca2baf0f7bb6dde19a60` after Build and Test ([run 45152416117](https://github.com/alighaziam/aegis-modernization-engine/actions/runs/45152416117)), CodeQL ([run 45152416279](https://github.com/alighaziam/aegis-modernization-engine/actions/runs/45152416279)), and OSV scan ([run 45152416604](https://github.com/alighaziam/aegis-modernization-engine/actions/runs/45152416604)) passed on exact PR head `17556f43d70ad3d117c338ab0f8e85aef8e581bd`.
+- The bounded static DDL parser now recognizes `DROP TABLE` and `DROP INDEX`, records evidence for successful removals, treats missing objects with `IF EXISTS` as idempotent no-ops, and refuses to remove a parsed table when another parsed table has a foreign-key reference to it.
+- Added regression tests for successful table/index drops, dependency protection, missing-object diagnostics and `IF EXISTS`.
+- This is static analysis only; no DDL is executed and no production migration is claimed. The 80% score above remains the last full six-dimension assessment; this increment does not by itself justify a new overall score.
