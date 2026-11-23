@@ -18,6 +18,7 @@ import io.aegis.discovery.ProjectSourceScanner;
 import io.aegis.discovery.DatabaseProjectScanner;
 import io.aegis.discovery.DatabaseMetadataDiscovery;
 import io.aegis.reporting.ProjectReportGenerator;
+import io.aegis.reporting.SarifReportGenerator;
 import io.aegis.reporting.MigrationPlanReportGenerator;
 import io.aegis.reporting.DataReconciliationReportGenerator;
 import io.aegis.reporting.DataReconciliationExecutionReportGenerator;
@@ -73,6 +74,7 @@ public final class AegisCli {
             return switch (args[0]) {
                 case "intake" -> runIntake(args);
                 case "parse-ddl" -> runParseDdl(args);
+                case "parse-ddl-sarif" -> runParseDdlSarif(args);
                 case "list-db-dialects" -> runListDbDialects(args);
                 case "map-ddl" -> runMapDdl(args);
                 case "analyze-java" -> runAnalyzeJava(args);
@@ -260,6 +262,25 @@ public final class AegisCli {
         SqlDdlParser.ParseResult result = new SqlDdlParser().parse(sql, sourceName, args[2]);
         System.out.println(JSON.writeValueAsString(result));
         return result.diagnostics().isEmpty() ? 0 : 3;
+    }
+
+    private static int runParseDdlSarif(String[] args) throws Exception {
+        if (args.length < 4 || args.length > 5) {
+            System.err.println("Usage: aegis-modernization-engine parse-ddl-sarif <schema.sql> <dialect> <output.sarif> [source-uri]");
+            return 2;
+        }
+        Path input = Path.of(args[1]);
+        Path output = Path.of(args[3]);
+        String sql = Files.readString(input, StandardCharsets.UTF_8);
+        String sourceName = args.length == 5 ? args[4] : input.getFileName().toString();
+        SqlDdlParser.ParseResult parsed = new SqlDdlParser().parse(sql, sourceName, args[2]);
+        Map<String, Object> sarif = new SarifReportGenerator().generateDdlReport(parsed, sourceName);
+        Path parent = output.toAbsolutePath().getParent();
+        if (parent != null) Files.createDirectories(parent);
+        Files.writeString(output, JSON.writeValueAsString(sarif), StandardCharsets.UTF_8);
+        System.out.println("Wrote SARIF 2.1.0 report: " + output);
+        System.out.println("Diagnostics: " + parsed.diagnostics().size());
+        return parsed.diagnostics().isEmpty() ? 0 : 3;
     }
 
     private static int runMapDdl(String[] args) throws Exception {
@@ -779,6 +800,8 @@ public final class AegisCli {
                       Validate an intake envelope and register supplied artifacts.
                   parse-ddl <schema.sql> <oracle|postgresql|mysql|mariadb|sqlserver|db2> [source-name]
                       Parse the supported SQL DDL subset and emit JSON.
+                  parse-ddl-sarif <schema.sql> <dialect> <output.sarif> [source-uri]
+                      Parse SQL DDL and emit SARIF 2.1.0 diagnostics for GitHub code scanning.
                   map-ddl <intake.json> <schema.sql> <oracle|postgresql|mysql|mariadb|sqlserver|db2> <store-id> <schema-name> [db-version]
                       Build a project UPKM and merge the parsed physical database schema.
                   analyze-java <source.java> <intake.json>
