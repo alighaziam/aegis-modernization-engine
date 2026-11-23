@@ -16,6 +16,8 @@ public final class SqlDdlParser {
     private static final Pattern ALTER_DROP_COLUMN = Pattern.compile("(?is)^\\s*ALTER\\s+TABLE\\s+([\\w.$#\\\"]+)\\s+DROP\\s+COLUMN\\s+(IF\\s+EXISTS\\s+)?([\\w.$#\\\"]+)\\s*$");
     private static final Pattern ALTER_RENAME_COLUMN = Pattern.compile("(?is)^\\s*ALTER\\s+TABLE\\s+([\\w.$#\\\"]+)\\s+RENAME\\s+COLUMN\\s+([\\w.$#\\\"]+)\\s+TO\\s+([\\w.$#\\\"]+)\\s*$");
     private static final Pattern ALTER_RENAME_TABLE = Pattern.compile("(?is)^\\s*ALTER\\s+TABLE\\s+([\\w.$#\\\"]+)\\s+RENAME\\s+TO\\s+([\\w.$#\\\"]+)\\s*$");
+    private static final Pattern ALTER_COLUMN = Pattern.compile("(?is)^\\s*ALTER\\s+TABLE\\s+([\\w.$#\\\"]+)\\s+ALTER\\s+(?:COLUMN\\s+)?([\\w.$#\\\"]+)\\s+(TYPE\\s+.+|SET\\s+DATA\\s+TYPE\\s+.+|SET\\s+NOT\\s+NULL|DROP\\s+NOT\\s+NULL|SET\\s+DEFAULT\\s+.+|DROP\\s+DEFAULT)\\s*$");
+    private static final Pattern ALTER_MODIFY_COLUMN = Pattern.compile("(?is)^\\s*ALTER\\s+TABLE\\s+([\\w.$#\\\"]+)\\s+MODIFY\\s+(?:\\((.*)\\)|(.*))\\s*$");
     private static final Pattern IDENTIFIER = Pattern.compile("^[\\\"]?([A-Za-z0-9_$#]+)[\\\"]?");
     private static final Pattern REFERENCES = Pattern.compile("(?is)REFERENCES\\s+([\\w.$#\\\"]+)\\s*\\((.*?)\\)");
 
@@ -37,6 +39,8 @@ public final class SqlDdlParser {
             Matcher dropColumnMatcher = ALTER_DROP_COLUMN.matcher(text);
             Matcher renameColumnMatcher = ALTER_RENAME_COLUMN.matcher(text);
             Matcher renameTableMatcher = ALTER_RENAME_TABLE.matcher(text);
+            Matcher alterColumnMatcher = ALTER_COLUMN.matcher(text);
+            Matcher modifyColumnMatcher = ALTER_MODIFY_COLUMN.matcher(text);
             if (tableMatcher.find()) {
                 String tableName = cleanName(tableMatcher.group(1));
                 int open = text.indexOf('(', tableMatcher.start());
@@ -162,6 +166,138 @@ public final class SqlDdlParser {
                 }
                 evidence.add(new EvidenceDraft("table:" + newName, sourceName, statement.line(),
                         "ALTER TABLE RENAME TO", "direct", "high"));
+            } else if (alterColumnMatcher.find()) {
+                String tableName = cleanName(alterColumnMatcher.group(1));
+                String columnName = cleanName(alterColumnMatcher.group(2));
+                String action = alterColumnMatcher.group(3).trim();
+                Table table = findTable(tables, tableName);
+                if (table == null) {
+                    diagnostics.add(diag("ALTER_TABLE_BEFORE_CREATE",
+                            "ALTER TABLE references table not parsed in this input: " + tableName,
+                            statement.line()));
+                    continue;
+                }
+                Column existing = table.columns().stream()
+                        .filter(column -> column.name().equalsIgnoreCase(columnName))
+                        .findFirst().orElse(null);
+                if (existing == null) {
+                    diagnostics.add(diag("ALTER_COLUMN_NOT_FOUND",
+                            "ALTER TABLE attempts to modify an unknown column: " + tableName + "." + columnName,
+                            statement.line()));
+                    continue;
+                }
+
+                String upperAction = action.toUpperCase(Locale.ROOT);
+                Column changedColumn = existing;
+                String extraction;
+                if (upperAction.startsWith("TYPE ") || upperAction.startsWith("SET DATA TYPE ")) {
+                    String typeDefinition = action.replaceFirst("(?is)^(?:TYPE|SET\\s+DATA\\s+TYPE)\\s+", "").trim();
+                    Matcher usingMatcher = Pattern.compile("(?is)\\s+USING\\s+").matcher(typeDefinition);
+                    if (usingMatcher.find()) {
+                        diagnostics.add(diag("ALTER_COLUMN_USING_REVIEW",
+                                "USING expressions are not evaluated by static DDL analysis; review the data conversion for "
+                                        + tableName + "." + columnName,
+                                statement.line()));
+                        typeDefinition = typeDefinition.substring(0, usingMatcher.start()).trim();
+                    }
+                    Column parsedType = parseColumn(columnName + " " + typeDefinition,
+                            sourceName, statement.line(), diagnostics);
+                    if (parsedType == null) continue;
+                    changedColumn = new Column(existing.name(), parsedType.dataType(), parsedType.length(),
+                            parsedType.scale(), existing.nullable(), existing.defaultExpression(),
+                            locator(sourceName, statement.line()));
+                    extraction = "ALTER TABLE ALTER COLUMN TYPE";
+                } else if (upperAction.equals("SET NOT NULL")) {
+                    changedColumn = new Column(existing.name(), existing.dataType(), existing.length(),
+                            existing.scale(), false, existing.defaultExpression(), locator(sourceName, statement.line()));
+                    extraction = "ALTER TABLE ALTER COLUMN SET NOT NULL";
+                } else if (upperAction.equals("DROP NOT NULL")) {
+                    changedColumn = new Column(existing.name(), existing.dataType(), existing.length(),
+                            existing.scale(), true, existing.defaultExpression(), locator(sourceName, statement.line()));
+                    extraction = "ALTER TABLE ALTER COLUMN DROP NOT NULL";
+                } else if (upperAction.startsWith("SET DEFAULT ")) {
+                    String defaultExpression = action.substring("SET DEFAULT ".length()).trim();
+                    if (defaultExpression.isEmpty()) {
+                        diagnostics.add(diag("ALTER_COLUMN_DEFAULT_MISSING",
+                                "SET DEFAULT requires an expression for " + tableName + "." + columnName,
+                                statement.line()));
+                        continue;
+                    }
+                    changedColumn = new Column(existing.name(), existing.dataType(), existing.length(),
+                            existing.scale(), existing.nullable(), defaultExpression, locator(sourceName, statement.line()));
+                    extraction = "ALTER TABLE ALTER COLUMN SET DEFAULT";
+                } else {
+                    changedColumn = new Column(existing.name(), existing.dataType(), existing.length(),
+                            existing.scale(), existing.nullable(), null, locator(sourceName, statement.line()));
+                    extraction = "ALTER TABLE ALTER COLUMN DROP DEFAULT";
+                }
+                List<Column> changedColumns = new ArrayList<>(table.columns());
+                changedColumns.set(changedColumns.indexOf(existing), changedColumn);
+                replaceTable(tables, table, new Table(table.name(), changedColumns, table.constraints(),
+                        table.indexes(), table.locator()));
+                evidence.add(new EvidenceDraft("column:" + tableName + "." + columnName,
+                        sourceName, statement.line(), extraction, "direct", "high"));
+            } else if (modifyColumnMatcher.find()) {
+                String tableName = cleanName(modifyColumnMatcher.group(1));
+                String definitions = modifyColumnMatcher.group(2) != null
+                        ? modifyColumnMatcher.group(2) : modifyColumnMatcher.group(3);
+                if (definitions != null && definitions.regionMatches(true, 0, "COLUMN ", 0, 7)) {
+                    definitions = definitions.substring(7).trim();
+                }
+                Table table = findTable(tables, tableName);
+                if (table == null) {
+                    diagnostics.add(diag("ALTER_TABLE_BEFORE_CREATE",
+                            "ALTER TABLE references table not parsed in this input: " + tableName,
+                            statement.line()));
+                    continue;
+                }
+                if (definitions == null || definitions.isBlank()) {
+                    diagnostics.add(diag("ALTER_MODIFY_COLUMN_EMPTY",
+                            "ALTER TABLE MODIFY requires at least one column definition.", statement.line()));
+                    continue;
+                }
+                List<Column> changedColumns = new ArrayList<>(table.columns());
+                boolean changedAny = false;
+                for (String definition : splitTopLevel(definitions)) {
+                    Matcher columnDefinition = Pattern.compile("(?is)^([\\\"]?[A-Za-z0-9_$#]+[\\\"]?)\\s+(.+)$")
+                            .matcher(definition.trim());
+                    if (!columnDefinition.find()) {
+                        diagnostics.add(diag("UNPARSED_COLUMN_MODIFY",
+                                "Could not parse ALTER TABLE MODIFY column: " + abbreviate(definition),
+                                statement.line()));
+                        continue;
+                    }
+                    String columnName = cleanName(columnDefinition.group(1));
+                    Column existing = changedColumns.stream()
+                            .filter(column -> column.name().equalsIgnoreCase(columnName))
+                            .findFirst().orElse(null);
+                    if (existing == null) {
+                        diagnostics.add(diag("ALTER_COLUMN_NOT_FOUND",
+                                "ALTER TABLE MODIFY references an unknown column: " + tableName + "." + columnName,
+                                statement.line()));
+                        continue;
+                    }
+                    String columnOptions = columnDefinition.group(2).trim();
+                    Column parsed = parseColumn(columnName + " " + columnOptions,
+                            sourceName, statement.line(), diagnostics);
+                    if (parsed == null) continue;
+                    boolean nullable = existing.nullable();
+                    String upperOptions = columnOptions.toUpperCase(Locale.ROOT);
+                    if (upperOptions.matches("(?s).*\\bNOT\\s+NULL\\b.*")) nullable = false;
+                    else if (upperOptions.matches("(?s).*\\bNULL\\b.*")) nullable = true;
+                    String defaultExpression = parsed.defaultExpression() == null
+                            ? existing.defaultExpression() : parsed.defaultExpression();
+                    Column changed = new Column(existing.name(), parsed.dataType(), parsed.length(),
+                            parsed.scale(), nullable, defaultExpression, locator(sourceName, statement.line()));
+                    changedColumns.set(changedColumns.indexOf(existing), changed);
+                    changedAny = true;
+                    evidence.add(new EvidenceDraft("column:" + tableName + "." + columnName,
+                            sourceName, statement.line(), "ALTER TABLE MODIFY COLUMN", "direct", "high"));
+                }
+                if (changedAny) {
+                    replaceTable(tables, table, new Table(table.name(), changedColumns, table.constraints(),
+                            table.indexes(), table.locator()));
+                }
             } else if (alterMatcher.find()) {
                 String tableName = cleanName(alterMatcher.group(1));
                 String constraintName = cleanName(alterMatcher.group(2));
