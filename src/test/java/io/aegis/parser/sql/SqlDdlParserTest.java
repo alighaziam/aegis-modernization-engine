@@ -393,4 +393,80 @@ class SqlDdlParserTest {
                 .filter(d -> "ALTER_TABLE_BEFORE_CREATE".equals(d.code())).count());
     }
 
+
+    @Test
+    void parsesDropTableAndRemovesItsIndexesWithEvidence() {
+        SqlDdlParser.ParseResult result = parser.parse("""
+                CREATE TABLE orders (id BIGINT PRIMARY KEY);
+                CREATE INDEX idx_orders_id ON orders(id);
+                DROP TABLE orders;
+                """, "V6__drop_orders.sql", "postgresql");
+
+        assertTrue(result.tables().isEmpty());
+        assertTrue(result.indexes().isEmpty());
+        assertTrue(result.evidence().stream().anyMatch(e ->
+                e.subjectRef().equals("table:orders") && e.extraction().equals("DROP TABLE")));
+        assertTrue(result.diagnostics().isEmpty(), () -> result.diagnostics().toString());
+    }
+
+    @Test
+    void blocksDropTableWhenAnotherParsedTableReferencesIt() {
+        SqlDdlParser.ParseResult result = parser.parse("""
+                CREATE TABLE customers (id BIGINT PRIMARY KEY);
+                CREATE TABLE orders (
+                    id BIGINT PRIMARY KEY,
+                    customer_id BIGINT REFERENCES customers(id)
+                );
+                CREATE INDEX idx_customers_id ON customers(id);
+                DROP TABLE customers;
+                """, "V6__unsafe_drop_customer.sql", "postgresql");
+
+        assertEquals(2, result.tables().size());
+        assertEquals(1, result.indexes().size());
+        assertTrue(result.diagnostics().stream().anyMatch(d -> "DROP_TABLE_DEPENDENCY".equals(d.code())));
+        assertTrue(result.evidence().stream().noneMatch(e -> e.extraction().equals("DROP TABLE")));
+    }
+
+    @Test
+    void parsesDropIndexAndRemovesItFromTopLevelAndTable() {
+        SqlDdlParser.ParseResult result = parser.parse("""
+                CREATE TABLE orders (id BIGINT PRIMARY KEY);
+                CREATE INDEX idx_orders_id ON orders(id);
+                DROP INDEX idx_orders_id;
+                """, "V6__drop_orders_index.sql", "postgresql");
+
+        assertTrue(result.indexes().isEmpty());
+        assertTrue(result.tables().getFirst().indexes().isEmpty());
+        assertTrue(result.evidence().stream().anyMatch(e ->
+                e.subjectRef().equals("index:idx_orders_id") && e.extraction().equals("DROP INDEX")));
+        assertTrue(result.diagnostics().isEmpty(), () -> result.diagnostics().toString());
+    }
+
+    @Test
+    void handlesMissingDropTableAndIndexWithIfExists() {
+        SqlDdlParser.ParseResult result = parser.parse("""
+                CREATE TABLE orders (id BIGINT PRIMARY KEY);
+                DROP TABLE IF EXISTS archived_orders;
+                DROP INDEX IF EXISTS idx_missing;
+                """, "V6__idempotent_drop.sql", "postgresql");
+
+        assertEquals(1, result.tables().size());
+        assertTrue(result.indexes().isEmpty());
+        assertTrue(result.diagnostics().isEmpty(), () -> result.diagnostics().toString());
+        assertTrue(result.evidence().stream().noneMatch(e ->
+                e.extraction().equals("DROP TABLE") || e.extraction().equals("DROP INDEX")));
+    }
+
+    @Test
+    void reportsMissingDropTableAndIndexWithoutIfExists() {
+        SqlDdlParser.ParseResult result = parser.parse("""
+                DROP TABLE missing_table;
+                DROP INDEX missing_index;
+                """, "V6__invalid_drop.sql", "postgresql");
+
+        assertTrue(result.diagnostics().stream().anyMatch(d -> "DROP_TABLE_NOT_FOUND".equals(d.code())));
+        assertTrue(result.diagnostics().stream().anyMatch(d -> "DROP_INDEX_NOT_FOUND".equals(d.code())));
+        assertTrue(result.evidence().isEmpty());
+    }
+
 }
