@@ -34,3 +34,10 @@ Aegis is an engineering tool with deliberately bounded parsers and transformatio
 ## Current limitation
 
 Aegis generates reviewable plans and bounded transformations. A guarded reconciliation executor can run only planner-generated scalar COUNT SELECT statements; it does not execute DDL or data writes. It does not yet provide a universal, fully automated, production-safe migration executor. Human review and external validation remain mandatory.
+
+
+## Containerized CLI deployment
+
+A hardened container option is available for deterministic offline CLI workflows. The image uses a Java 25 JRE runtime, runs as UID 10001, has a read-only root filesystem, drops all Linux capabilities, enables `no-new-privileges`, and exposes no network listener. Docker Compose mounts only `./workspace` as writable and applies CPU/memory limits. Keep customer inputs and reports in that workspace; make the host directory writable by UID 10001. Oracle connectivity remains an explicit deployment concern and must use environment-based credentials plus an approved network policy.
+
+The container does not change the product's safety boundary: Aegis still does not execute DDL or data writes. `parse-ddl-sarif` exports SQL DDL parser diagnostics as SARIF 2.1.0; it does not upload results to GitHub and does not convert review diagnostics into approvals.

@@ -1,0 +1,11 @@
+.git
+.github
+.idea
+.vscode
+target
+output
+workspace
+*.log
+*.tmp
+*.sarif
+.DS_Store

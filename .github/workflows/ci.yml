@@ -35,3 +35,24 @@ jobs:
 
       - name: Smoke-test executable CLI
         run: java -jar target/aegis-modernization-engine-0.1.0-SNAPSHOT.jar --help
+
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
+
+      - name: Build and smoke-test hardened container
+        shell: bash
+        run: |
+          docker build --pull -t aegis-modernization-engine:test .
+          docker run --rm --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m --cap-drop=ALL --security-opt=no-new-privileges --network none aegis-modernization-engine:test --help
+          mkdir -p "$RUNNER_TEMP/aegis-workspace"
+          chmod 0777 "$RUNNER_TEMP/aegis-workspace"
+          set +e
+          docker run --rm --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m --cap-drop=ALL --security-opt=no-new-privileges --network none \
+            -v "$RUNNER_TEMP/aegis-workspace:/workspace" \
+            aegis-modernization-engine:test \
+            parse-ddl-sarif /opt/aegis/examples/smoke.sql postgresql /workspace/report.sarif examples/smoke.sql
+          status=$?
+          set -e
+          test "$status" -eq 3
+          test -s "$RUNNER_TEMP/aegis-workspace/report.sarif"
+          grep -q '"version" : "2.1.0"' "$RUNNER_TEMP/aegis-workspace/report.sarif"

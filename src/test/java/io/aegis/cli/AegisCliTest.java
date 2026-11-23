@@ -541,4 +541,19 @@ class AegisCliTest {
                 .contains("DIAGNOSTICS_REQUIRE_APPROVAL"));
     }
 
+
+    @Test
+    void parseDdlSarifCommandWritesGitHubCompatibleReport() throws Exception {
+        Path sql = tempDir.resolve("schema.sql");
+        Path sarif = tempDir.resolve("reports/schema.sarif");
+        Files.writeString(sql, "ALTER TABLE missing ALTER COLUMN id SET NOT NULL;");
+
+        assertEquals(3, AegisCli.run(new String[]{
+                "parse-ddl-sarif", sql.toString(), "postgresql", sarif.toString(), "db/schema.sql"}));
+        String report = Files.readString(sarif);
+        assertTrue(report.contains("\"version\" : \"2.1.0\""));
+        assertTrue(report.contains("\"ruleId\" : \"ALTER_TABLE_BEFORE_CREATE\""));
+        assertTrue(report.contains("\"uri\" : \"db/schema.sql\""));
+    }
+
 }
