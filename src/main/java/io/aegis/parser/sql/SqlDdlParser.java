@@ -614,8 +614,8 @@ public final class SqlDdlParser {
     private static Diagnostic diag(String code, String message, int line) { return new Diagnostic(code, message, line, "REVIEW_REQUIRED"); }
     private static boolean sameTableReference(String reference, String target) {
         if (reference == null || target == null) return false;
-        String left = reference.replace("\\"", "").toLowerCase(Locale.ROOT);
-        String right = target.replace("\\"", "").toLowerCase(Locale.ROOT);
+        String left = reference.replace("\"", "").toLowerCase(Locale.ROOT);
+        String right = target.replace("\"", "").toLowerCase(Locale.ROOT);
         return left.equals(right) || left.endsWith("." + right) || right.endsWith("." + left);
     }
 
