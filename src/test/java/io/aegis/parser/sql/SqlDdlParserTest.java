@@ -306,4 +306,91 @@ class SqlDdlParserTest {
     }
 
 
+
+    @Test
+    void appliesPostgresAlterColumnTypeNullabilityAndDefaultChangesInOrder() {
+        SqlDdlParser.ParseResult result = parser.parse("""
+                CREATE TABLE customers (
+                    id BIGINT NOT NULL,
+                    email VARCHAR(80),
+                    status VARCHAR(10) DEFAULT 'new'
+                );
+                ALTER TABLE customers ALTER COLUMN email TYPE VARCHAR(255);
+                ALTER TABLE customers ALTER COLUMN email SET NOT NULL;
+                ALTER TABLE customers ALTER COLUMN email DROP NOT NULL;
+                ALTER TABLE customers ALTER COLUMN status SET DEFAULT 'active';
+                ALTER TABLE customers ALTER COLUMN status DROP DEFAULT;
+                """, "V7__alter_customer_columns.sql", "postgresql");
+
+        SqlDdlParser.Table customers = result.tables().getFirst();
+        SqlDdlParser.Column email = customers.columns().stream()
+                .filter(column -> "email".equalsIgnoreCase(column.name())).findFirst().orElseThrow();
+        SqlDdlParser.Column status = customers.columns().stream()
+                .filter(column -> "status".equalsIgnoreCase(column.name())).findFirst().orElseThrow();
+
+        assertEquals("VARCHAR", email.dataType());
+        assertEquals(255, email.length());
+        assertTrue(email.nullable());
+        assertNull(status.defaultExpression());
+        assertEquals(5, result.evidence().stream()
+                .filter(e -> e.extraction().startsWith("ALTER TABLE ALTER COLUMN")).count());
+        assertTrue(result.diagnostics().isEmpty(), () -> result.diagnostics().toString());
+    }
+
+    @Test
+    void appliesOracleModifyColumnFormsAndPreservesUnspecifiedNullabilityAndDefaults() {
+        SqlDdlParser.ParseResult result = parser.parse("""
+                CREATE TABLE customers (
+                    id NUMBER(9) NOT NULL,
+                    name VARCHAR2(40) DEFAULT 'guest'
+                );
+                ALTER TABLE customers MODIFY (id NUMBER(12), name VARCHAR2(100) NOT NULL);
+                """, "V7__oracle_modify_customer.sql", "oracle");
+
+        SqlDdlParser.Table customers = result.tables().getFirst();
+        SqlDdlParser.Column id = customers.columns().stream()
+                .filter(column -> "id".equalsIgnoreCase(column.name())).findFirst().orElseThrow();
+        SqlDdlParser.Column name = customers.columns().stream()
+                .filter(column -> "name".equalsIgnoreCase(column.name())).findFirst().orElseThrow();
+
+        assertEquals("NUMBER", id.dataType());
+        assertEquals(12, id.length());
+        assertFalse(id.nullable());
+        assertEquals(100, name.length());
+        assertFalse(name.nullable());
+        assertEquals("'guest'", name.defaultExpression());
+        assertEquals(2, result.evidence().stream()
+                .filter(e -> e.extraction().equals("ALTER TABLE MODIFY COLUMN")).count());
+        assertTrue(result.diagnostics().isEmpty(), () -> result.diagnostics().toString());
+    }
+
+    @Test
+    void reportsUnknownAlteredColumnsAndRequiresReviewForUsingExpressions() {
+        SqlDdlParser.ParseResult result = parser.parse("""
+                CREATE TABLE customers (id BIGINT, amount NUMBER(8,2));
+                ALTER TABLE customers ALTER COLUMN missing SET NOT NULL;
+                ALTER TABLE customers ALTER COLUMN amount TYPE NUMERIC(12,2) USING amount::numeric;
+                """, "V7__review_column_changes.sql", "postgresql");
+
+        SqlDdlParser.Column amount = result.tables().getFirst().columns().stream()
+                .filter(column -> "amount".equalsIgnoreCase(column.name())).findFirst().orElseThrow();
+        assertEquals("NUMERIC", amount.dataType());
+        assertEquals(12, amount.length());
+        assertEquals(2, amount.scale());
+        assertTrue(result.diagnostics().stream().anyMatch(d -> "ALTER_COLUMN_NOT_FOUND".equals(d.code())));
+        assertTrue(result.diagnostics().stream().anyMatch(d -> "ALTER_COLUMN_USING_REVIEW".equals(d.code())));
+    }
+
+    @Test
+    void reportsMissingTableForAlterColumnAndModifyStatements() {
+        SqlDdlParser.ParseResult result = parser.parse("""
+                ALTER TABLE missing ALTER COLUMN id SET NOT NULL;
+                ALTER TABLE another MODIFY (name VARCHAR2(50));
+                """, "V7__missing_tables.sql", "oracle");
+
+        assertTrue(result.tables().isEmpty());
+        assertEquals(2, result.diagnostics().stream()
+                .filter(d -> "ALTER_TABLE_BEFORE_CREATE".equals(d.code())).count());
+    }
+
 }
