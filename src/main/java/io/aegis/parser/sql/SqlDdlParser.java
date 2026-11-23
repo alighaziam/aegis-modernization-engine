@@ -11,6 +11,8 @@ import java.util.regex.Pattern;
 public final class SqlDdlParser {
     private static final Pattern CREATE_TABLE = Pattern.compile("(?is)^\\s*CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?([\\w.$#\\\" ]+)\\s*\\(");
     private static final Pattern CREATE_INDEX = Pattern.compile("(?is)^\\s*CREATE\\s+(UNIQUE\\s+)?INDEX\\s+([\\w.$#\\\"]+)\\s+ON\\s+([\\w.$#\\\"]+)\\s*\\((.*?)\\)");
+    private static final Pattern DROP_TABLE = Pattern.compile("(?is)^\\s*DROP\\s+TABLE\\s+(IF\\s+EXISTS\\s+)?([\\w.$#\\\"]+)\\s*$");
+    private static final Pattern DROP_INDEX = Pattern.compile("(?is)^\\s*DROP\\s+INDEX\\s+(IF\\s+EXISTS\\s+)?([\\w.$#\\\"]+)\\s*$");
     private static final Pattern ALTER_TABLE = Pattern.compile("(?is)^\\s*ALTER\\s+TABLE\\s+([\\w.$#\\\"]+)\\s+ADD\\s+(?:CONSTRAINT\\s+([\\w.$#\\\"]+)\\s+)?(.*)$");
     private static final Pattern ALTER_DROP_CONSTRAINT = Pattern.compile("(?is)^\\s*ALTER\\s+TABLE\\s+([\\w.$#\\\"]+)\\s+DROP\\s+CONSTRAINT\\s+(IF\\s+EXISTS\\s+)?([\\w.$#\\\"]+)\\s*$");
     private static final Pattern ALTER_DROP_COLUMN = Pattern.compile("(?is)^\\s*ALTER\\s+TABLE\\s+([\\w.$#\\\"]+)\\s+DROP\\s+COLUMN\\s+(IF\\s+EXISTS\\s+)?([\\w.$#\\\"]+)\\s*$");
@@ -34,6 +36,8 @@ public final class SqlDdlParser {
             if (text.isEmpty()) continue;
             Matcher tableMatcher = CREATE_TABLE.matcher(text);
             Matcher indexMatcher = CREATE_INDEX.matcher(text);
+            Matcher dropTableMatcher = DROP_TABLE.matcher(text);
+            Matcher dropIndexMatcher = DROP_INDEX.matcher(text);
             Matcher alterMatcher = ALTER_TABLE.matcher(text);
             Matcher dropConstraintMatcher = ALTER_DROP_CONSTRAINT.matcher(text);
             Matcher dropColumnMatcher = ALTER_DROP_COLUMN.matcher(text);
@@ -56,6 +60,56 @@ public final class SqlDdlParser {
                         locator(sourceName, statement.line()));
                 indexes.add(index);
                 evidence.add(new EvidenceDraft("index:" + index.name(), sourceName, statement.line(), "CREATE INDEX", "direct", "high"));
+            } else if (dropTableMatcher.find()) {
+                boolean ifExists = dropTableMatcher.group(1) != null;
+                String tableName = cleanName(dropTableMatcher.group(2));
+                Table table = findTable(tables, tableName);
+                if (table == null) {
+                    if (!ifExists) diagnostics.add(diag("DROP_TABLE_NOT_FOUND",
+                            "DROP TABLE references a table not parsed in this input: " + tableName,
+                            statement.line()));
+                    continue;
+                }
+                List<String> dependentTables = tables.stream()
+                        .filter(candidate -> candidate != table)
+                        .filter(candidate -> candidate.constraints().stream()
+                                .anyMatch(constraint -> "FOREIGN_KEY".equalsIgnoreCase(constraint.type())
+                                        && sameTableReference(constraint.referencedTable(), tableName)))
+                        .map(Table::name)
+                        .distinct()
+                        .toList();
+                if (!dependentTables.isEmpty()) {
+                    diagnostics.add(diag("DROP_TABLE_DEPENDENCY",
+                            "DROP TABLE is blocked by parsed foreign-key references from: "
+                                    + String.join(", ", dependentTables),
+                            statement.line()));
+                    continue;
+                }
+                tables.remove(table);
+                indexes.removeIf(index -> sameTableReference(index.tableName(), tableName));
+                evidence.add(new EvidenceDraft("table:" + tableName, sourceName, statement.line(),
+                        "DROP TABLE", "direct", "high"));
+            } else if (dropIndexMatcher.find()) {
+                boolean ifExists = dropIndexMatcher.group(1) != null;
+                String indexName = cleanName(dropIndexMatcher.group(2));
+                boolean removed = indexes.removeIf(index -> index.name().equalsIgnoreCase(indexName));
+                for (Table table : new ArrayList<>(tables)) {
+                    List<Index> changedIndexes = new ArrayList<>(table.indexes());
+                    boolean removedFromTable = changedIndexes.removeIf(index -> index.name().equalsIgnoreCase(indexName));
+                    if (removedFromTable) {
+                        removed = true;
+                        replaceTable(tables, table, new Table(table.name(), table.columns(), table.constraints(),
+                                changedIndexes, table.locator()));
+                    }
+                }
+                if (!removed) {
+                    if (!ifExists) diagnostics.add(diag("DROP_INDEX_NOT_FOUND",
+                            "DROP INDEX references an index not parsed in this input: " + indexName,
+                            statement.line()));
+                    continue;
+                }
+                evidence.add(new EvidenceDraft("index:" + indexName, sourceName, statement.line(),
+                        "DROP INDEX", "direct", "high"));
             } else if (dropConstraintMatcher.find()) {
                 String tableName = cleanName(dropConstraintMatcher.group(1));
                 boolean ifExists = dropConstraintMatcher.group(2) != null;
@@ -558,6 +612,13 @@ public final class SqlDdlParser {
     }
     private static String abbreviate(String s) { return s.length() \u003e 180 ? s.substring(0, 180) + "..." : s; }
     private static Diagnostic diag(String code, String message, int line) { return new Diagnostic(code, message, line, "REVIEW_REQUIRED"); }
+    private static boolean sameTableReference(String reference, String target) {
+        if (reference == null || target == null) return false;
+        String left = reference.replace("\"", "").toLowerCase(Locale.ROOT);
+        String right = target.replace("\"", "").toLowerCase(Locale.ROOT);
+        return left.equals(right) || left.endsWith("." + right) || right.endsWith("." + left);
+    }
+
     private static Table findTable(List\u003cTable\u003e tables, String name) { for (Table t : tables) if (t.name().equalsIgnoreCase(name)) return t; return null; }
     private static void replaceTable(List\u003cTable\u003e tables, Table old, Table replacement) { tables.set(tables.indexOf(old), replacement); }
 
