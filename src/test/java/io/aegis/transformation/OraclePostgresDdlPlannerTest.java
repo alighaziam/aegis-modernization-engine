@@ -56,4 +56,24 @@ class OraclePostgresDdlPlannerTest {
         assertTrue(plan.diagnostics().stream().anyMatch(d -> d.code().equals("UNSUPPORTED_ORACLE_TYPE")));
         assertTrue(plan.diagnostics().stream().anyMatch(d -> d.code().equals("TABLE_NOT_EMITTED")));
     }
+
+    @Test void usesFinalAlteredColumnMetadataInOraclePostgresMigrationPlan() {
+        String ddl = """
+                CREATE TABLE CUSTOMER (
+                  ID NUMBER(9),
+                  AMOUNT NUMBER(8,2)
+                );
+                ALTER TABLE CUSTOMER MODIFY (AMOUNT NUMBER(12,2));
+                ALTER TABLE CUSTOMER MODIFY (ID NUMBER(9) NOT NULL);
+                """;
+        var parsed = parser.parse(ddl, "V7__customer_amount.sql", "oracle");
+        var plan = planner.plan(parsed, "public");
+
+        assertEquals(1, plan.statements().size());
+        String sql = plan.statements().getFirst();
+        assertTrue(sql.contains("\"AMOUNT\" NUMERIC(12,2)"));
+        assertTrue(sql.contains("\"ID\" INTEGER NOT NULL"));
+        assertTrue(parsed.diagnostics().isEmpty(), () -> parsed.diagnostics().toString());
+    }
+
 }
